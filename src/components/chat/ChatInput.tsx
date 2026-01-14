@@ -1,5 +1,5 @@
 import { useState, useRef, KeyboardEvent } from 'react';
-import { Send, Image, Paperclip, X, Loader2 } from 'lucide-react';
+import { ArrowUp, Image, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -10,7 +10,7 @@ interface ChatInputProps {
   placeholder?: string;
 }
 
-export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anisia..." }: ChatInputProps) {
+export function ChatInput({ onSendMessage, disabled, placeholder = "Scrie un mesaj..." }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anis
   };
 
   return (
-    <div className="border-t border-border bg-background p-4">
+    <div className="border-t border-border bg-background py-4 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Image Preview */}
         {imagePreview && (
@@ -72,8 +72,8 @@ export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anis
           </div>
         )}
 
-        {/* Input Area */}
-        <div className="flex items-end gap-2 bg-input rounded-xl p-2 border border-border focus-within:ring-2 focus-within:ring-primary/50 transition-smooth">
+        {/* ChatGPT-style Input Area */}
+        <div className="relative flex items-end bg-[#2f2f2f] rounded-2xl border border-[#424242]">
           {/* File Upload Button */}
           <input
             ref={fileInputRef}
@@ -85,7 +85,7 @@ export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anis
           <Button
             size="icon"
             variant="ghost"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-10 w-10 text-muted-foreground hover:text-foreground shrink-0 ml-1"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
           >
@@ -101,9 +101,9 @@ export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anis
             placeholder={placeholder}
             disabled={disabled}
             className={cn(
-              "flex-1 min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent",
+              "flex-1 min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent py-3 px-2",
               "focus-visible:ring-0 focus-visible:ring-offset-0",
-              "placeholder:text-muted-foreground"
+              "placeholder:text-muted-foreground text-foreground"
             )}
             rows={1}
           />
@@ -112,18 +112,18 @@ export function ChatInput({ onSendMessage, disabled, placeholder = "Message Anis
           <Button
             size="icon"
             className={cn(
-              "h-9 w-9 shrink-0 transition-smooth",
+              "h-8 w-8 shrink-0 mr-2 mb-2 rounded-lg transition-all",
               (message.trim() || imageFile) && !disabled
-                ? "bg-primary hover:bg-primary/90"
-                : "bg-muted text-muted-foreground"
+                ? "bg-white hover:bg-gray-200 text-black"
+                : "bg-[#424242] text-muted-foreground cursor-not-allowed"
             )}
             onClick={handleSubmit}
             disabled={(!message.trim() && !imageFile) || disabled}
           >
             {disabled ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-5 w-5" />
+              <ArrowUp className="h-4 w-4" />
             )}
           </Button>
         </div>
