@@ -1,9 +1,9 @@
-import { memo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { User, Volume2, Copy, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
+import { GameRenderer } from './GameRenderer';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
@@ -12,6 +12,42 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   onSpeak?: () => void;
   isSpeaking?: boolean;
+}
+
+// Parse content to separate text and games
+function parseContent(content: string): { type: 'text' | 'game'; content: string }[] {
+  const parts: { type: 'text' | 'game'; content: string }[] = [];
+  const gameRegex = /<game>([\s\S]*?)<\/game>/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = gameRegex.exec(content)) !== null) {
+    // Add text before the game
+    if (match.index > lastIndex) {
+      const textBefore = content.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        parts.push({ type: 'text', content: textBefore });
+      }
+    }
+    // Add the game
+    parts.push({ type: 'game', content: match[1] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    const remainingText = content.slice(lastIndex).trim();
+    if (remainingText) {
+      parts.push({ type: 'text', content: remainingText });
+    }
+  }
+
+  // If no games found, return the whole content as text
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content });
+  }
+
+  return parts;
 }
 
 // Simple markdown renderer
@@ -70,6 +106,8 @@ export const ChatMessage = memo(function ChatMessage({
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
 
+  const parsedContent = useMemo(() => parseContent(content), [content]);
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
     setCopied(true);
@@ -112,7 +150,7 @@ export const ChatMessage = memo(function ChatMessage({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-medium text-sm">
-            {role === 'assistant' ? 'Anisia' : 'You'}
+            {role === 'assistant' ? 'Anisia' : 'Tu'}
           </span>
         </div>
 
@@ -121,7 +159,7 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="mb-3 relative group">
             <img
               src={imageUrl}
-              alt="Generated image"
+              alt="Imagine generată"
               className="max-w-md rounded-lg border border-border"
             />
             <Button
@@ -135,14 +173,22 @@ export const ChatMessage = memo(function ChatMessage({
           </div>
         )}
 
-        {/* Text content */}
-        <div
-          className={cn(
-            "markdown-content text-foreground",
-            isStreaming && "typing-cursor"
-          )}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-        />
+        {/* Parsed content (text and games) */}
+        {parsedContent.map((part, index) => (
+          <div key={index}>
+            {part.type === 'game' ? (
+              <GameRenderer gameCode={part.content} />
+            ) : (
+              <div
+                className={cn(
+                  "markdown-content text-foreground",
+                  isStreaming && index === parsedContent.length - 1 && "typing-cursor"
+                )}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(part.content) }}
+              />
+            )}
+          </div>
+        ))}
 
         {/* Actions for assistant messages */}
         {role === 'assistant' && !isStreaming && content && (
@@ -158,7 +204,7 @@ export const ChatMessage = memo(function ChatMessage({
               ) : (
                 <Copy className="h-3 w-3 mr-1" />
               )}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? 'Copiat' : 'Copiază'}
             </Button>
             {onSpeak && (
               <Button
@@ -173,7 +219,7 @@ export const ChatMessage = memo(function ChatMessage({
                 onClick={onSpeak}
               >
                 <Volume2 className="h-3 w-3 mr-1" />
-                {isSpeaking ? 'Speaking...' : 'Speak'}
+                {isSpeaking ? 'Vorbește...' : 'Ascultă'}
               </Button>
             )}
           </div>
