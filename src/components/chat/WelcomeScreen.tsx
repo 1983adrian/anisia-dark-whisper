@@ -1,4 +1,4 @@
-import { Sparkles, BookOpen, Code2, Image, Search } from 'lucide-react';
+import { Sparkles, BookOpen, Code2, Image, Search, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
 
@@ -7,6 +7,11 @@ interface WelcomeScreenProps {
 }
 
 const suggestions = [
+  {
+    icon: Gamepad2,
+    title: "Creează un joc",
+    prompt: "Creează-mi un joc Snake clasic pe care să-l pot juca direct aici"
+  },
   {
     icon: BookOpen,
     title: "Ajutor la teme",
@@ -21,11 +26,6 @@ const suggestions = [
     icon: Image,
     title: "Generează imagini",
     prompt: "Generează o imagine cu un peisaj montan din România"
-  },
-  {
-    icon: Search,
-    title: "Caută informații",
-    prompt: "Ce s-a întâmplat în istorie în ziua de azi?"
   }
 ];
 
@@ -48,7 +48,7 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
               <Sparkles className="h-6 w-6 text-primary" />
             </h1>
             <p className="text-muted-foreground mt-2">
-              Asistentul tău AI pentru educație și programare
+              Asistentul tău AI pentru educație, programare și jocuri 🎮
             </p>
           </div>
         </div>
@@ -87,11 +87,11 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-            Generare imagini
+            Jocuri interactive
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-            Voce naturală
+            Voce în română
           </span>
         </div>
       </div>
