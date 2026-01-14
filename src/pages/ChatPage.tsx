@@ -75,12 +75,12 @@ export default function ChatPage() {
     setStreamingContent('');
 
     try {
-      const allMessages = [...messages, { role: 'user' as const, content, imageUrl }];
+      const allMessages = [...messages, { role: 'user' as const, content, image_url: imageUrl }];
       
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages.map(m => ({ role: m.role, content: m.content, imageUrl: m.imageUrl })) }),
+        body: JSON.stringify({ messages: allMessages.map(m => ({ role: m.role, content: m.content, imageUrl: m.image_url })) }),
       });
 
       if (!resp.ok) {
