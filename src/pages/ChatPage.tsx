@@ -82,18 +82,36 @@ export default function ChatPage() {
         body: JSON.stringify({ messages: chatMessages, imageData })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        // If rate limited, use voice to respond
-        if (response.status === 402 || response.status === 429) {
-          const voiceMessage = "Momentan am atins limita de răspunsuri scrise, dar pot vorbi cu tine! Activează vocea mea și voi răspunde vocal.";
+      // If backend returns JSON (e.g. quota / rate limit), handle gracefully
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await response.json().catch(() => null as any);
+        if (json?.limited) {
+          const voiceMessage =
+            json?.reason === 'rate_limit'
+              ? 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.'
+              : 'Momentan s-a atins limita de utilizare. Încearcă din nou mai târziu. Dacă ai vocea activată, îți pot citi răspunsul când revine disponibil.';
+
           await addMessage(conversation.id, 'assistant', voiceMessage);
-          if (voiceEnabled) {
-            speak(voiceMessage);
-          }
+          if (voiceEnabled) speak(voiceMessage);
           return;
         }
-        throw new Error(errorData.error || 'Eroare la comunicarea cu AI');
+
+        if (!response.ok) {
+          throw new Error(json?.error || 'Eroare la comunicarea cu AI');
+        }
+
+        // Non-stream JSON success (rare) fallback
+        const text = (json?.text || json?.message || '').toString();
+        if (text) {
+          await addMessage(conversation.id, 'assistant', text);
+          if (voiceEnabled) speak(text);
+        }
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Eroare la comunicarea cu AI');
       }
 
       // Handle streaming response
@@ -113,7 +131,7 @@ export default function ChatPage() {
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data === '[DONE]') continue;
-              
+
               try {
                 const parsed = JSON.parse(data);
                 const deltaContent = parsed.choices?.[0]?.delta?.content;
