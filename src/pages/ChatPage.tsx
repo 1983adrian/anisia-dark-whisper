@@ -23,16 +23,18 @@ export default function ChatPage() {
   
   const { voiceEnabled, setVoiceEnabled, toggleVoice, isSpeaking, isPaused, speak, pause, resume, stop } = useVoice();
   
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar hidden by default
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingContent]);
 
   const handleSendMessage = useCallback(async (content: string, imageFile?: File) => {
     if (!user) return;
@@ -44,6 +46,7 @@ export default function ChatPage() {
     }
 
     setIsStreaming(true);
+    setStreamingContent('');
     
     try {
       // Convert image to base64 if present
@@ -81,6 +84,15 @@ export default function ChatPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // If rate limited, use voice to respond
+        if (response.status === 402 || response.status === 429) {
+          const voiceMessage = "Momentan am atins limita de răspunsuri scrise, dar pot vorbi cu tine! Activează vocea mea și voi răspunde vocal.";
+          await addMessage(conversation.id, 'assistant', voiceMessage);
+          if (voiceEnabled) {
+            speak(voiceMessage);
+          }
+          return;
+        }
         throw new Error(errorData.error || 'Eroare la comunicarea cu AI');
       }
 
@@ -104,9 +116,10 @@ export default function ChatPage() {
               
               try {
                 const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  assistantMessage += content;
+                const deltaContent = parsed.choices?.[0]?.delta?.content;
+                if (deltaContent) {
+                  assistantMessage += deltaContent;
+                  setStreamingContent(assistantMessage);
                 }
               } catch {
                 // Skip invalid JSON
@@ -119,6 +132,7 @@ export default function ChatPage() {
       // Save assistant message
       if (assistantMessage) {
         await addMessage(conversation.id, 'assistant', assistantMessage);
+        setStreamingContent('');
         
         // Speak if voice enabled
         if (voiceEnabled) {
@@ -130,30 +144,73 @@ export default function ChatPage() {
       toast.error(error instanceof Error ? error.message : 'Eroare la trimitere');
     } finally {
       setIsStreaming(false);
+      setStreamingContent('');
     }
   }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak]);
 
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Se încarcă...</div>;
   if (!user) return <AuthPage />;
 
   return (
-    <div className="flex h-screen bg-background">
-      <div className={cn("fixed inset-y-0 left-0 z-50 w-72 transition-transform lg:relative lg:translate-x-0", sidebarOpen ? "translate-x-0" : "-translate-x-full")}>
-        <ChatSidebar conversations={conversations} currentConversation={currentConversation} onNewChat={() => createConversation()} onSelectConversation={selectConversation} onDeleteConversation={deleteConversation} onRenameConversation={updateConversationTitle} onSignOut={() => {}} onOpenSettings={() => setSettingsOpen(true)} />
+    <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
+      {/* Overlay for mobile when sidebar is open */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar - hidden by default, slides in */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-50 w-72 transition-transform duration-300",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <ChatSidebar 
+          conversations={conversations} 
+          currentConversation={currentConversation} 
+          onNewChat={() => { createConversation(); setSidebarOpen(false); }} 
+          onSelectConversation={(c) => { selectConversation(c); setSidebarOpen(false); }} 
+          onDeleteConversation={deleteConversation} 
+          onRenameConversation={updateConversationTitle} 
+          onSignOut={() => {}} 
+          onOpenSettings={() => setSettingsOpen(true)} 
+        />
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <ChatHeader title={currentConversation?.title || 'Anisia'} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} voiceEnabled={voiceEnabled} onToggleVoice={toggleVoice} isSpeaking={isSpeaking} isPaused={isPaused} onPause={pause} onResume={resume} onStop={stop} />
+      {/* Main chat area - full width always */}
+      <div className="flex-1 flex flex-col min-w-0 w-full">
+        <ChatHeader 
+          title={currentConversation?.title || 'Anisia'} 
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+          voiceEnabled={voiceEnabled} 
+          onToggleVoice={toggleVoice} 
+          isSpeaking={isSpeaking} 
+          isPaused={isPaused} 
+          onPause={pause} 
+          onResume={resume} 
+          onStop={stop} 
+        />
 
         {!currentConversation && messages.length === 0 ? (
           <WelcomeScreen onStartChat={(p) => p ? handleSendMessage(p) : createConversation()} />
         ) : (
           <ScrollArea className="flex-1" ref={scrollRef}>
-            <div className="max-w-3xl mx-auto p-4">
+            <div className="max-w-3xl mx-auto px-4 py-4">
               {messages.map((msg) => (
                 <ChatMessage key={msg.id} role={msg.role} content={msg.content} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
               ))}
-              {isStreaming && <div className="p-4 text-muted-foreground animate-pulse">Anisia scrie...</div>}
+              {isStreaming && streamingContent && (
+                <ChatMessage role="assistant" content={streamingContent} onSpeak={() => {}} isSpeaking={false} />
+              )}
+              {isStreaming && !streamingContent && (
+                <div className="flex items-center gap-3 p-4">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                  </div>
+                  <span className="text-muted-foreground">Anisia scrie...</span>
+                </div>
+              )}
             </div>
           </ScrollArea>
         )}
