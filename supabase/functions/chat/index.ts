@@ -171,16 +171,24 @@ serve(async (req) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Prea multe cereri. Te rog încearcă din nou." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        // Return 200 so the frontend doesn't treat it as a fatal runtime error
+        return new Response(
+          JSON.stringify({ limited: true, reason: "rate_limit", error: "Prea multe cereri. Te rog încearcă din nou." }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Limita de utilizare atinsă." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        // Return 200 so the frontend can show a friendly message (and keep the UI working)
+        return new Response(
+          JSON.stringify({ limited: true, reason: "quota", error: "Limita de utilizare atinsă." }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
       const text = await response.text();
       console.error("AI gateway error:", response.status, text);
