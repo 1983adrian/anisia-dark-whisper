@@ -1,1 +1,13 @@
 project_id = "hftwqcubkqtpxczacmpd"
+
+[functions.chat]
+verify_jwt = false
+
+[functions.daily-predictions]
+verify_jwt = false
+
+[functions.generate-image]
+verify_jwt = false
+
+[functions.web-search]
+verify_jwt = false
