@@ -38,6 +38,30 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_predictions: {
+        Row: {
+          created_at: string
+          id: string
+          matches: Json
+          prediction_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matches?: Json
+          prediction_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matches?: Json
+          prediction_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -72,6 +96,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      prediction_results: {
+        Row: {
+          created_at: string
+          id: string
+          matches_with_results: Json
+          prediction_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matches_with_results?: Json
+          prediction_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matches_with_results?: Json
+          prediction_date?: string
+        }
+        Relationships: []
       }
       user_settings: {
         Row: {
