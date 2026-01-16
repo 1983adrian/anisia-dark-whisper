@@ -1,4 +1,6 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
 
 interface WelcomeScreenProps {
@@ -24,6 +26,16 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
               <Sparkles className="h-5 w-5 text-primary" />
             </h1>
           </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="pt-4">
+          <Link to="/predictions">
+            <Button variant="outline" className="gap-2">
+              <Trophy className="h-4 w-4 text-yellow-500" />
+              Predicții Zilnice Fotbal
+            </Button>
+          </Link>
         </div>
       </div>
     </div>
