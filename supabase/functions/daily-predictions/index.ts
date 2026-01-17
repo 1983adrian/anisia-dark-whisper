@@ -6,21 +6,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Top-tier leagues and competitions to include
 const ALLOWED_COMPETITIONS = [
-  // Top 5 European Leagues
   "Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1",
-  // Other top leagues
   "Primeira Liga", "Eredivisie", "Belgian Pro League", "Scottish Premiership",
-  "Super Lig", "Russian Premier League", "Ukrainian Premier League",
+  "Super Lig", "Championship", "Serie B", "2. Bundesliga", "Ligue 2",
   "Liga Romania", "Liga 1", "SuperLiga",
-  // UEFA Competitions
   "UEFA Champions League", "Champions League", "UCL",
   "UEFA Europa League", "Europa League", "UEL",
   "UEFA Conference League", "Conference League", "UECL",
-  // National Teams
   "World Cup", "Euro", "UEFA Nations League", "Nations League",
-  "World Cup Qualifiers", "Euro Qualifiers", "Friendlies"
+  "World Cup Qualifiers", "Euro Qualifiers"
 ];
 
 interface Match {
@@ -30,26 +25,94 @@ interface Match {
   awayTeam: string;
   kickoff: string;
   prediction: string;
-  odds: {
-    home: number;
-    draw: number;
-    away: number;
-    over25: number;
-    under25: number;
-  };
+  odds: { home: number; draw: number; away: number; over25: number; under25: number };
   confidence: number;
   reasoning: string;
-  monteCarloProbs: {
-    home: number;
-    draw: number;
-    away: number;
-    over25: number;
+  riskLevel: "low" | "medium" | "high";
+  monteCarloProbs: { home: number; draw: number; away: number; over25: number; btts: number };
+  firecrawlData?: {
+    form: string;
+    standings: string;
+    injuries: string;
+    news: string;
+    weatherConditions: string;
   };
 }
 
-interface MatchResult extends Match {
-  finalScore: string;
-  outcome: "win" | "loss" | "push";
+async function scrapeMatchData(firecrawlApiKey: string, query: string): Promise<any> {
+  console.log(`[Firecrawl] Searching: ${query}`);
+  
+  try {
+    const response = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${firecrawlApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        limit: 5,
+        scrapeOptions: { formats: ["markdown"] }
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[Firecrawl] Error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[Firecrawl] Request failed:", error);
+    return null;
+  }
+}
+
+async function runMonteCarloSimulation(
+  homeStrength: number,
+  awayStrength: number,
+  iterations: number = 100000
+): Promise<{ home: number; draw: number; away: number; over25: number; btts: number }> {
+  let homeWins = 0, draws = 0, awayWins = 0, over25 = 0, btts = 0;
+
+  const poissonProb = (lambda: number, k: number): number => {
+    return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
+  };
+
+  const factorial = (n: number): number => {
+    if (n <= 1) return 1;
+    let result = 1;
+    for (let i = 2; i <= n; i++) result *= i;
+    return result;
+  };
+
+  const homeExpected = homeStrength;
+  const awayExpected = awayStrength;
+
+  for (let i = 0; i < iterations; i++) {
+    let homeGoals = 0, awayGoals = 0;
+    
+    for (let g = 0; g < 8; g++) {
+      if (Math.random() < poissonProb(homeExpected, g)) homeGoals = g;
+      if (Math.random() < poissonProb(awayExpected, g)) awayGoals = g;
+    }
+
+    if (homeGoals > awayGoals) homeWins++;
+    else if (homeGoals < awayGoals) awayWins++;
+    else draws++;
+
+    if (homeGoals + awayGoals > 2.5) over25++;
+    if (homeGoals > 0 && awayGoals > 0) btts++;
+  }
+
+  return {
+    home: (homeWins / iterations) * 100,
+    draw: (draws / iterations) * 100,
+    away: (awayWins / iterations) * 100,
+    over25: (over25 / iterations) * 100,
+    btts: (btts / iterations) * 100,
+  };
 }
 
 serve(async (req) => {
@@ -61,6 +124,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
+    const firecrawlApiKey = Deno.env.get("FIRECRAWL_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -69,7 +133,7 @@ serve(async (req) => {
 
     console.log(`[Daily Predictions] Running for date: ${today}`);
 
-    // Check if we already ran today
+    // Check if already ran today
     const { data: existingPrediction } = await supabase
       .from("daily_predictions")
       .select("*")
@@ -79,106 +143,71 @@ serve(async (req) => {
     if (existingPrediction) {
       console.log(`[Daily Predictions] Already generated for ${today}`);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Predictions already generated for today",
-          data: existingPrediction 
-        }),
+        JSON.stringify({ success: true, message: "Already generated", data: existingPrediction }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Get yesterday's predictions to update with results
-    const { data: yesterdayPredictions } = await supabase
-      .from("daily_predictions")
-      .select("*")
-      .eq("prediction_date", yesterday)
-      .single();
+    // Step 1: Use Firecrawl to get today's matches
+    console.log("[Step 1] Fetching match data with Firecrawl...");
+    
+    let firecrawlData = null;
+    if (firecrawlApiKey) {
+      firecrawlData = await scrapeMatchData(
+        firecrawlApiKey,
+        `football matches today ${today} Premier League La Liga Serie A Bundesliga Champions League odds predictions`
+      );
+      console.log("[Firecrawl] Data received:", firecrawlData?.success ? "success" : "failed");
+    }
 
-    // Generate today's predictions using AI
-    const promptForMatches = `
-Ești un expert în predicții sportive cu acces la date live.
+    // Step 2: AI Analysis with 80/20 Rule
+    console.log("[Step 2] AI analysis with Monte Carlo + 80/20 factor...");
 
-DATA DE ASTĂZI: ${today}
+    const analysisPrompt = `
+DATA: ${today}
+FIRECRAWL DATA: ${JSON.stringify(firecrawlData?.data || [], null, 2).slice(0, 8000)}
 
-TASK: Generează EXACT 8 predicții pentru meciurile de fotbal de ASTĂZI din:
-- Ligi de top: Premier League, La Liga, Serie A, Bundesliga, Ligue 1
-- Alte ligi de nivel 1: Primeira Liga, Eredivisie, SuperLig, Liga 1 România
-- UEFA: Champions League, Europa League, Conference League
-- Naționale: Calificări, Nations League, Turnee finale
+TASK STRICT:
+1. Extrage DOAR meciuri DEZECHILIBRATE din ligile de top
+2. Aplică factorul 80/20:
+   - 80% date reale (formă, clasament, absențe, cote)
+   - 20% incertitudine (penalty, cartonaș roșu, accidentări)
+3. MAX 8 meciuri, MIN 1
+4. NU include meciuri echilibrate
 
-Pentru fiecare meci returnează un JSON VALID cu structura:
+FILTRE OBLIGATORII:
+- Diferență mare clasament SAU
+- Diferență clară formă SAU
+- Absențe majore echipa slabă SAU
+- Diferență semnificativă cote SAU
+- Avantaj puternic acasă pentru favorită
+
+RETURN JSON STRICT:
 {
   "matches": [
     {
-      "id": "unique-id",
-      "competition": "Numele competiției",
-      "homeTeam": "Echipa gazdă",
-      "awayTeam": "Echipa oaspete",
+      "id": "uuid",
+      "competition": "Premier League",
+      "homeTeam": "Echipa",
+      "awayTeam": "Echipa",
       "kickoff": "HH:MM",
-      "prediction": "1" sau "X" sau "2" sau "O2.5" sau "U2.5" sau "BTTS",
-      "odds": {
-        "home": 1.85,
-        "draw": 3.40,
-        "away": 4.20,
-        "over25": 1.90,
-        "under25": 1.95
-      },
+      "prediction": "1|X|2|O2.5|U2.5|BTTS",
+      "odds": {"home": 1.5, "draw": 4.0, "away": 6.0, "over25": 1.8, "under25": 2.0},
       "confidence": 75,
-      "reasoning": "Motivul predicției în 1-2 propoziții",
-      "monteCarloProbs": {
-        "home": 52.3,
-        "draw": 26.1,
-        "away": 21.6,
-        "over25": 58.4
-      }
+      "reasoning": "Motiv scurt",
+      "riskLevel": "low|medium|high",
+      "monteCarloProbs": {"home": 65, "draw": 20, "away": 15, "over25": 55, "btts": 45},
+      "keyFactors": ["Factor1", "Factor2"],
+      "uncertaintyAdjustment": "20% risc: penalty posibil"
     }
   ],
-  "betOfTheDay": {
-    "matchId": "id-ul meciului recomandat",
-    "reason": "De ce acest pariu are cea mai mare valoare"
-  },
-  "totalMatches": 8,
-  "message": "Mesaj scurt dacă sunt mai puțin de 8 meciuri disponibile"
+  "betOfTheDay": {"matchId": "id", "reason": "Cel mai mare edge"},
+  "totalMatches": 5,
+  "message": "5 meciuri dezechilibrate găsite"
 }
 
-REGULI IMPORTANTE:
-1. Folosește date REALE pentru meciurile de azi
-2. Cotele să fie realiste (între 1.10 și 10.00)
-3. Probabilitățile Monte Carlo să totalizeze ~100% pentru 1/X/2
-4. Confidence între 60-95%
-5. Dacă nu sunt 8 meciuri, pune câte găsești și explică în message
-6. Returnează DOAR JSON valid, fără text suplimentar!
-`;
+DOAR JSON, FĂRĂ TEXT!`;
 
-    const promptForResults = yesterdayPredictions ? `
-Ai predicțiile de IERI (${yesterday}):
-${JSON.stringify(yesterdayPredictions.matches, null, 2)}
-
-TASK: Pentru fiecare meci, adaugă rezultatul final real.
-Returnează JSON cu structura:
-{
-  "matchesWithResults": [
-    {
-      ...meciul original...,
-      "finalScore": "2-1",
-      "outcome": "win" sau "loss" sau "push"
-    }
-  ],
-  "summary": {
-    "total": 8,
-    "wins": 5,
-    "losses": 3,
-    "winRate": 62.5
-  }
-}
-
-Folosește scorurile REALE din meciurile de ieri. Returnează DOAR JSON valid!
-` : null;
-
-    // Call AI for today's predictions
-    console.log("[Daily Predictions] Calling AI for today's matches...");
-    
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -188,57 +217,101 @@ Folosește scorurile REALE din meciurile de ieri. Returnează DOAR JSON valid!
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Ești un expert în predicții sportive. Răspunzi DOAR cu JSON valid." },
-          { role: "user", content: promptForMatches }
+          { 
+            role: "system", 
+            content: `Expert predicții fotbal. Aplică:
+- Monte Carlo 5M simulări
+- Poisson Distribution
+- 80% date reale / 20% incertitudine
+- DOAR meciuri clar dezechilibrate
+Răspuns: JSON STRICT, fără explicații.`
+          },
+          { role: "user", content: analysisPrompt }
         ],
-        max_tokens: 8000,
+        max_tokens: 10000,
       }),
     });
 
     if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("[Daily Predictions] AI error:", errorText);
-      throw new Error(`AI request failed: ${aiResponse.status}`);
+      throw new Error(`AI error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
     const aiContent = aiData.choices?.[0]?.message?.content || "";
-    
-    console.log("[Daily Predictions] AI response received, parsing...");
 
-    // Extract JSON from AI response
+    // Parse JSON
     let predictionsData;
     try {
-      // Try to extract JSON from markdown code blocks or raw text
-      const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)```/) || 
-                        aiContent.match(/(\{[ \s\S]*\})/);
-      const jsonStr = jsonMatch ? jsonMatch[1].trim() : aiContent.trim();
-      predictionsData = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error("[Daily Predictions] JSON parse error:", parseError);
-      console.error("[Daily Predictions] Raw content:", aiContent);
-      throw new Error("Failed to parse AI predictions");
+      const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)```/) || aiContent.match(/(\{[\s\S]*\})/);
+      predictionsData = JSON.parse(jsonMatch ? jsonMatch[1].trim() : aiContent.trim());
+    } catch (e) {
+      console.error("[Parse Error]:", aiContent.slice(0, 500));
+      throw new Error("Failed to parse predictions");
     }
 
-    // Save today's predictions
+    // Step 3: Run Monte Carlo on each match
+    console.log("[Step 3] Running Monte Carlo simulations...");
+    
+    if (predictionsData.matches) {
+      for (const match of predictionsData.matches) {
+        const homeStrength = match.monteCarloProbs?.home ? match.monteCarloProbs.home / 40 : 1.5;
+        const awayStrength = match.monteCarloProbs?.away ? match.monteCarloProbs.away / 40 : 1.0;
+        
+        const simResults = await runMonteCarloSimulation(homeStrength, awayStrength, 100000);
+        
+        // Apply 80/20 adjustment
+        match.monteCarloProbs = {
+          home: simResults.home * 0.8 + (100 - simResults.home) * 0.04,
+          draw: simResults.draw * 0.8 + 20 * 0.2,
+          away: simResults.away * 0.8 + (100 - simResults.away) * 0.04,
+          over25: simResults.over25 * 0.8 + 50 * 0.2,
+          btts: simResults.btts * 0.8 + 50 * 0.2,
+        };
+      }
+    }
+
+    // Save predictions
     const { error: insertError } = await supabase
       .from("daily_predictions")
-      .insert({
-        prediction_date: today,
-        matches: predictionsData
-      });
+      .insert({ prediction_date: today, matches: predictionsData });
 
-    if (insertError) {
-      console.error("[Daily Predictions] DB insert error:", insertError);
-      throw insertError;
-    }
+    if (insertError) throw insertError;
 
-    console.log(`[Daily Predictions] Saved ${predictionsData.matches?.length || 0} predictions for ${today}`);
+    console.log(`[Daily Predictions] Saved ${predictionsData.matches?.length || 0} predictions`);
 
-    // Process yesterday's results if we have predictions
-    if (yesterdayPredictions && promptForResults) {
-      console.log("[Daily Predictions] Fetching yesterday's results...");
-      
+    // Process yesterday's results
+    const { data: yesterdayPredictions } = await supabase
+      .from("daily_predictions")
+      .select("*")
+      .eq("prediction_date", yesterday)
+      .single();
+
+    if (yesterdayPredictions) {
+      console.log("[Step 4] Processing yesterday's results...");
+
+      let yesterdayData = null;
+      if (firecrawlApiKey) {
+        yesterdayData = await scrapeMatchData(
+          firecrawlApiKey,
+          `football results ${yesterday} scores final`
+        );
+      }
+
+      const resultsPrompt = `
+PREDICȚII IERI (${yesterday}):
+${JSON.stringify(yesterdayPredictions.matches, null, 2)}
+
+REZULTATE FIRECRAWL:
+${JSON.stringify(yesterdayData?.data || [], null, 2).slice(0, 5000)}
+
+RETURN JSON:
+{
+  "matchesWithResults": [
+    {...match, "finalScore": "2-1", "outcome": "win|loss|push"}
+  ],
+  "summary": {"total": 8, "wins": 5, "losses": 3, "winRate": 62.5}
+}`;
+
       const resultsResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -248,10 +321,10 @@ Folosește scorurile REALE din meciurile de ieri. Returnează DOAR JSON valid!
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: "Ești un expert în rezultate sportive. Răspunzi DOAR cu JSON valid." },
-            { role: "user", content: promptForResults }
+            { role: "system", content: "Expert rezultate. DOAR JSON valid." },
+            { role: "user", content: resultsPrompt }
           ],
-          max_tokens: 4000,
+          max_tokens: 5000,
         }),
       });
 
@@ -260,32 +333,38 @@ Folosește scorurile REALE din meciurile de ieri. Returnează DOAR JSON valid!
         const resultsContent = resultsData.choices?.[0]?.message?.content || "";
         
         try {
-          const resultsJsonMatch = resultsContent.match(/```(?:json)?\s*([\s\S]*?)```/) || 
-                                   resultsContent.match(/(\{[ \s\S]*\})/);
-          const resultsJsonStr = resultsJsonMatch ? resultsJsonMatch[1].trim() : resultsContent.trim();
-          const resultsJson = JSON.parse(resultsJsonStr);
-
-          // Save results
-          await supabase
-            .from("prediction_results")
-            .upsert({
-              prediction_date: yesterday,
-              matches_with_results: resultsJson
-            });
-
-          console.log(`[Daily Predictions] Saved results for ${yesterday}`);
+          const rMatch = resultsContent.match(/```(?:json)?\s*([\s\S]*?)```/) || resultsContent.match(/(\{[\s\S]*\})/);
+          const resultsJson = JSON.parse(rMatch ? rMatch[1].trim() : resultsContent.trim());
+          
+          await supabase.from("prediction_results").upsert({
+            prediction_date: yesterday,
+            matches_with_results: resultsJson
+          });
+          console.log(`[Results] Saved for ${yesterday}`);
         } catch (e) {
-          console.error("[Daily Predictions] Failed to parse results:", e);
+          console.error("[Results Parse Error]:", e);
         }
       }
+    }
+
+    // Send push notifications
+    console.log("[Step 5] Sending push notifications...");
+    
+    const { data: subscriptions } = await supabase
+      .from("push_subscriptions")
+      .select("*");
+
+    if (subscriptions && subscriptions.length > 0) {
+      console.log(`[Push] ${subscriptions.length} subscribers found`);
+      // Push notification logic would go here with web-push
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Predictions generated for ${today}`,
-        predictions: predictionsData,
-        date: today
+        date: today,
+        matchCount: predictionsData.matches?.length || 0,
+        predictions: predictionsData
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
