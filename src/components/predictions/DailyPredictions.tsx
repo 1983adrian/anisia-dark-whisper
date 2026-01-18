@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Trophy, Target, TrendingUp, Calendar, CheckCircle, XCircle, Clock, AlertTriangle, Bell, BellOff, RefreshCw } from "lucide-react";
+import { Trophy, Calendar, CheckCircle, XCircle, Bell, BellOff, RefreshCw, Shield } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -19,11 +19,9 @@ interface Match {
   prediction: string;
   odds: { home: number; draw: number; away: number; over25: number; under25: number };
   confidence: number;
-  reasoning: string;
   riskLevel?: "low" | "medium" | "high";
   monteCarloProbs: { home: number; draw: number; away: number; over25: number; btts?: number };
-  keyFactors?: string[];
-  uncertaintyAdjustment?: string;
+  verified?: boolean;
 }
 
 interface MatchResult extends Match {
@@ -33,9 +31,7 @@ interface MatchResult extends Match {
 
 interface PredictionsData {
   matches: Match[];
-  betOfTheDay?: { matchId: string; reason: string };
   totalMatches: number;
-  message?: string;
 }
 
 interface ResultsData {
@@ -50,7 +46,6 @@ export function DailyPredictions() {
   const [yesterdayResults, setYesterdayResults] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPredictions();
@@ -83,7 +78,6 @@ export function DailyPredictions() {
       }
     } catch (err) {
       console.error("Error:", err);
-      setError("Eroare încărcare");
     } finally {
       setLoading(false);
     }
@@ -94,10 +88,10 @@ export function DailyPredictions() {
     try {
       const { data, error } = await supabase.functions.invoke("daily-predictions");
       if (error) throw error;
-      toast.success(`${data.matchCount} predicții generate!`);
+      toast.success(`${data.matchCount} meciuri verificate!`);
       fetchPredictions();
     } catch (err) {
-      toast.error("Eroare generare predicții");
+      toast.error("Eroare generare");
     } finally {
       setGenerating(false);
     }
@@ -105,26 +99,29 @@ export function DailyPredictions() {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-4">
-        <Skeleton className="h-12 w-48" />
-        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 w-full" />)}
+      <div className="w-full max-w-4xl mx-auto p-4 space-y-4">
+        <Skeleton className="h-16 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-48 w-full" />)}
+        </div>
       </div>
     );
   }
 
-  const betOfTheDay = todayPredictions?.matches?.find((m) => m.id === todayPredictions.betOfTheDay?.matchId);
+  const matches = todayPredictions?.matches || [];
+  const hasMatches = matches.length > 0;
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="w-full max-w-5xl mx-auto p-4 space-y-6">
+      {/* Minimal Header */}
+      <div className="flex items-center justify-between border-b border-border pb-4">
         <div className="flex items-center gap-3">
-          <Trophy className="h-8 w-8 text-yellow-500" />
+          <Trophy className="h-6 w-6 text-yellow-500" />
           <div>
-            <h1 className="text-2xl font-bold">Predicții Zilnice</h1>
-            <p className="text-muted-foreground text-sm">
-              <Calendar className="inline h-4 w-4 mr-1" />
-              {new Date().toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            <h1 className="text-xl font-bold">Predicții Zilnice</h1>
+            <p className="text-xs text-muted-foreground">
+              <Calendar className="inline h-3 w-3 mr-1" />
+              {new Date().toLocaleDateString("ro-RO", { weekday: "short", day: "numeric", month: "short" })}
             </p>
           </div>
         </div>
@@ -132,84 +129,55 @@ export function DailyPredictions() {
         <div className="flex items-center gap-2">
           {user && isSupported && (
             <Button
-              variant={isSubscribed ? "secondary" : "outline"}
-              size="sm"
+              variant={isSubscribed ? "secondary" : "ghost"}
+              size="icon"
               onClick={isSubscribed ? unsubscribe : subscribe}
+              title={isSubscribed ? "Dezactivează notificări" : "Activează notificări"}
             >
-              {isSubscribed ? <BellOff className="h-4 w-4 mr-1" /> : <Bell className="h-4 w-4 mr-1" />}
-              {isSubscribed ? "Dezactivează" : "Notificări"}
+              {isSubscribed ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
             </Button>
           )}
-          <Button onClick={generateNow} disabled={generating} size="sm">
-            <RefreshCw className={`h-4 w-4 mr-1 ${generating ? "animate-spin" : ""}`} />
-            {generating ? "Generare..." : "Generează"}
+          <Button onClick={generateNow} disabled={generating} size="sm" variant="outline">
+            <RefreshCw className={`h-4 w-4 ${generating ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
 
-      {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="p-4 text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
-      {/* Bet of the Day */}
-      {betOfTheDay && (
-        <Card className="border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 to-orange-500/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-yellow-500">
-              <Target className="h-5 w-5" />
-              🔥 PARIUL ZILEI
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MatchCard match={betOfTheDay} isBetOfDay />
-            {todayPredictions?.betOfTheDay?.reason && (
-              <p className="mt-3 text-sm text-muted-foreground italic">💡 {todayPredictions.betOfTheDay.reason}</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Today's Matches */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Meciuri Dezechilibrate
-          {todayPredictions?.message && <Badge variant="secondary" className="ml-2">{todayPredictions.message}</Badge>}
-        </h2>
-
-        {!todayPredictions?.matches?.length ? (
-          <Card className="p-8 text-center text-muted-foreground">
-            <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Predicțiile sunt generate automat la 05:00 UK</p>
-            <Button onClick={generateNow} disabled={generating} className="mt-4">
-              <RefreshCw className={`h-4 w-4 mr-2 ${generating ? "animate-spin" : ""}`} />
-              Generează Manual
-            </Button>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {todayPredictions.matches
-              .filter((m) => m.id !== todayPredictions.betOfTheDay?.matchId)
-              .map((match) => <MatchCard key={match.id} match={match} />)}
+      {/* Match Cards Grid - No text, only boxes */}
+      {!hasMatches ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Calendar className="h-8 w-8 text-muted-foreground" />
           </div>
-        )}
-      </div>
+          <p className="text-muted-foreground text-sm">Următoarele predicții vor apărea mâine la 05:00 UK</p>
+          <Button onClick={generateNow} disabled={generating} className="mt-4" size="sm">
+            <RefreshCw className={`h-4 w-4 mr-2 ${generating ? "animate-spin" : ""}`} />
+            Scanează Acum
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {matches.map((match) => (
+            <MatchBox key={match.id} match={match} />
+          ))}
+        </div>
+      )}
 
-      {/* Yesterday's Results */}
+      {/* Yesterday Results - Minimal */}
       {yesterdayResults?.matchesWithResults?.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            📊 Rezultate Ieri
+        <div className="border-t border-border pt-6 mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm font-medium text-muted-foreground">Rezultate Ieri</span>
             {yesterdayResults.summary && (
-              <Badge variant={yesterdayResults.summary.winRate >= 50 ? "default" : "secondary"} className="ml-2">
-                {yesterdayResults.summary.wins}/{yesterdayResults.summary.total} ({yesterdayResults.summary.winRate.toFixed(0)}%)
+              <Badge variant={yesterdayResults.summary.winRate >= 50 ? "default" : "secondary"}>
+                {yesterdayResults.summary.wins}/{yesterdayResults.summary.total}
               </Badge>
             )}
-          </h2>
-          <div className="space-y-2">
-            {yesterdayResults.matchesWithResults.map((match, idx) => <ResultCard key={idx} match={match} />)}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {yesterdayResults.matchesWithResults.map((match, idx) => (
+              <ResultBadge key={idx} match={match} />
+            ))}
           </div>
         </div>
       )}
@@ -217,96 +185,83 @@ export function DailyPredictions() {
   );
 }
 
-function MatchCard({ match, isBetOfDay = false }: { match: Match; isBetOfDay?: boolean }) {
+// Compact Match Box - No text, only essential data
+function MatchBox({ match }: { match: Match }) {
   const probs = match.monteCarloProbs;
-  const riskColors = { low: "text-green-500", medium: "text-yellow-500", high: "text-red-500" };
+  const riskColors = { 
+    low: "border-l-green-500", 
+    medium: "border-l-yellow-500", 
+    high: "border-l-red-500" 
+  };
 
   return (
-    <Card className={`transition-all ${isBetOfDay ? "" : "hover:border-primary/50"}`}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <Badge variant="outline" className="text-xs">{match.competition}</Badge>
-          <div className="flex items-center gap-2">
-            {match.riskLevel && (
-              <span className={`text-xs ${riskColors[match.riskLevel]}`}>
-                <AlertTriangle className="inline h-3 w-3 mr-1" />
-                {match.riskLevel.toUpperCase()}
-              </span>
-            )}
-            <span className="text-xs text-muted-foreground">⏰ {match.kickoff}</span>
+    <Card className={`border-l-4 ${riskColors[match.riskLevel || "medium"]} bg-card hover:bg-accent/5 transition-colors`}>
+      <CardContent className="p-4 space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {match.competition}
+          </Badge>
+          <div className="flex items-center gap-1">
+            {match.verified && <Shield className="h-3 w-3 text-green-500" />}
+            <span className="text-[10px] text-muted-foreground">{match.kickoff}</span>
           </div>
         </div>
 
-        <div className="text-center mb-3">
-          <span className="font-semibold">{match.homeTeam}</span>
-          <span className="text-muted-foreground mx-2">vs</span>
-          <span className="font-semibold">{match.awayTeam}</span>
+        {/* Teams */}
+        <div className="text-center py-2">
+          <div className="font-semibold text-sm">{match.homeTeam}</div>
+          <div className="text-[10px] text-muted-foreground my-1">vs</div>
+          <div className="font-semibold text-sm">{match.awayTeam}</div>
         </div>
 
-        <div className="space-y-2 mb-3">
-          <ProbBar label="1" value={probs.home} odds={match.odds.home} />
-          <ProbBar label="X" value={probs.draw} odds={match.odds.draw} />
-          <ProbBar label="2" value={probs.away} odds={match.odds.away} />
+        {/* Probability Bars */}
+        <div className="space-y-1.5">
+          <ProbRow label="1" value={probs.home} />
+          <ProbRow label="X" value={probs.draw} />
+          <ProbRow label="2" value={probs.away} />
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Badge className="bg-primary text-primary-foreground font-bold">{match.prediction}</Badge>
-            <span className="text-xs text-muted-foreground">Încredere: {match.confidence}%</span>
-          </div>
-          <div className="flex gap-1">
-            <Badge variant="outline">O2.5: {probs.over25?.toFixed(0)}%</Badge>
-            {probs.btts !== undefined && <Badge variant="outline">BTTS: {probs.btts?.toFixed(0)}%</Badge>}
-          </div>
+        {/* Prediction */}
+        <div className="flex items-center justify-between pt-2 border-t border-border">
+          <Badge className="font-bold">{match.prediction}</Badge>
+          <span className="text-[10px] text-muted-foreground">{match.confidence}%</span>
         </div>
 
-        {match.keyFactors && match.keyFactors.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {match.keyFactors.map((f, i) => <Badge key={i} variant="secondary" className="text-xs">{f}</Badge>)}
-          </div>
-        )}
-
-        {match.uncertaintyAdjustment && (
-          <p className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">⚠️ {match.uncertaintyAdjustment}</p>
-        )}
-
-        {match.reasoning && (
-          <p className="mt-2 text-xs text-muted-foreground border-t pt-2">💭 {match.reasoning}</p>
-        )}
+        {/* Extra Stats */}
+        <div className="flex gap-1 justify-center">
+          <Badge variant="secondary" className="text-[9px]">O2.5: {probs.over25?.toFixed(0)}%</Badge>
+          {probs.btts !== undefined && (
+            <Badge variant="secondary" className="text-[9px]">BTTS: {probs.btts?.toFixed(0)}%</Badge>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function ProbBar({ label, value, odds }: { label: string; value: number; odds: number }) {
+function ProbRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-6">{label}</span>
-      <Progress value={value} className="flex-1 h-2" />
-      <span className="w-12 text-right">{value?.toFixed(1)}%</span>
-      <Badge variant="secondary" className="w-14 text-center">@{odds?.toFixed(2)}</Badge>
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="w-3 font-medium">{label}</span>
+      <Progress value={value} className="flex-1 h-1.5" />
+      <span className="w-8 text-right text-muted-foreground">{value?.toFixed(0)}%</span>
     </div>
   );
 }
 
-function ResultCard({ match }: { match: MatchResult }) {
+function ResultBadge({ match }: { match: MatchResult }) {
   const isWin = match.outcome === "win";
   const isLoss = match.outcome === "loss";
 
   return (
-    <Card className={`border-l-4 ${isWin ? "border-l-green-500" : isLoss ? "border-l-red-500" : "border-l-yellow-500"}`}>
-      <CardContent className="p-3 flex items-center justify-between">
-        <div className="flex-1">
-          <Badge variant="outline" className="text-xs mb-1">{match.competition}</Badge>
-          <p className="text-sm font-medium">{match.homeTeam} vs {match.awayTeam}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary">{match.prediction}</Badge>
-          <span className="font-bold text-lg">{match.finalScore}</span>
-          {isWin ? <CheckCircle className="h-5 w-5 text-green-500" /> : isLoss ? <XCircle className="h-5 w-5 text-red-500" /> : <span className="text-yellow-500">⏸️</span>}
-        </div>
-      </CardContent>
-    </Card>
+    <Badge 
+      variant="outline" 
+      className={`text-[10px] ${isWin ? "border-green-500 text-green-500" : isLoss ? "border-red-500 text-red-500" : "border-yellow-500 text-yellow-500"}`}
+    >
+      {match.homeTeam.slice(0, 3)} {match.finalScore} {match.awayTeam.slice(0, 3)}
+      {isWin ? <CheckCircle className="h-3 w-3 ml-1" /> : isLoss ? <XCircle className="h-3 w-3 ml-1" /> : null}
+    </Badge>
   );
 }
 
