@@ -88,9 +88,18 @@ export function DailyPredictions() {
     try {
       const { data, error } = await supabase.functions.invoke("daily-predictions");
       if (error) throw error;
-      toast.success(`${data.matchCount} meciuri verificate!`);
+
+      if (data?.limitation === "AI_CREDITS_EXHAUSTED") {
+        toast.error("Limita AI (402) — nu pot extrage meciuri azi.");
+      } else if (data?.limitation === "AI_RATE_LIMIT") {
+        toast.error("Limită rată (429) — încearcă mai târziu.");
+      } else {
+        toast.success(`${data.matchCount ?? 0} meciuri verificate!`);
+      }
+
       fetchPredictions();
     } catch (err) {
+      console.error(err);
       toast.error("Eroare generare");
     } finally {
       setGenerating(false);

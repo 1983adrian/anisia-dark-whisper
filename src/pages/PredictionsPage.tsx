@@ -11,25 +11,21 @@ export default function PredictionsPage() {
   const handleManualRun = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-predictions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({}),
-        }
-      );
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase.functions.invoke("daily-predictions");
+      if (error) throw error;
 
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success("Predicțiile au fost generate!");
+      if (data?.success) {
+        if (data.limitation === "AI_CREDITS_EXHAUSTED") {
+          toast.error("Limita AI atinsă (402) — predicțiile de azi sunt goale.");
+        } else if (data.limitation === "AI_RATE_LIMIT") {
+          toast.error("Prea multe cereri (429) — încearcă mai târziu.");
+        } else {
+          toast.success("Audit finalizat!");
+        }
         window.location.reload();
       } else {
-        toast.error(data.message || "Eroare la generare");
+        toast.error(data?.message || "Eroare la generare");
       }
     } catch (err) {
       console.error(err);
