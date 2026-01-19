@@ -298,8 +298,40 @@ ONLY JSON OUTPUT!`;
       }),
     });
 
+    // Handle Lovable AI limits gracefully (do NOT crash the app)
     if (!extractResponse.ok) {
-      throw new Error(`AI extraction error: ${extractResponse.status}`);
+      const status = extractResponse.status;
+      const isLimit = status === 402 || status === 429;
+      const errorLabel = status === 402 ? "AI_CREDITS_EXHAUSTED" : status === 429 ? "AI_RATE_LIMIT" : "AI_ERROR";
+
+      console.error(`[AUDIT] ${errorLabel}: ${status}`);
+
+      if (isLimit) {
+        const predictionsData = {
+          matches: [],
+          totalMatches: 0,
+          message: errorLabel,
+        };
+
+        await supabase.from("daily_predictions").insert({
+          prediction_date: today,
+          matches: predictionsData,
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            audited: true,
+            date: today,
+            matchCount: 0,
+            limitation: errorLabel,
+            predictions: predictionsData,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      throw new Error(`AI extraction error: ${status}`);
     }
 
     const extractData = await extractResponse.json();
@@ -451,11 +483,11 @@ RETURN ONLY JSON:
         if (resultsResponse.ok) {
           const resultsData = await resultsResponse.json();
           const resultsContent = resultsData.choices?.[0]?.message?.content || "";
-          
+
           try {
             const rMatch = resultsContent.match(/```(?:json)?\s*([\s\S]*?)```/) || resultsContent.match(/(\{[\s\S]*\})/);
             const resultsJson = JSON.parse(rMatch ? rMatch[1].trim() : resultsContent.trim());
-            
+
             await supabase.from("prediction_results").upsert({
               prediction_date: yesterday,
               matches_with_results: resultsJson
@@ -463,6 +495,8 @@ RETURN ONLY JSON:
           } catch (e) {
             console.error("[Results Parse Error]:", e);
           }
+        } else if (resultsResponse.status === 402 || resultsResponse.status === 429) {
+          console.warn(`[AUDIT] Results matching skipped due to AI limit: ${resultsResponse.status}`);
         }
       }
     }
