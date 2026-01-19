@@ -22,6 +22,11 @@ interface Match {
   riskLevel?: "low" | "medium" | "high";
   monteCarloProbs: { home: number; draw: number; away: number; over25: number; btts?: number };
   verified?: boolean;
+  criteria?: {
+    formAdvantage?: boolean;
+    tableAdvantage?: boolean;
+    h2hAdvantage?: boolean;
+  };
 }
 
 interface MatchResult extends Match {
@@ -237,7 +242,18 @@ function MatchBox({ match }: { match: Match }) {
           <span className="text-[10px] text-muted-foreground">{match.confidence}%</span>
         </div>
 
-        {/* Extra Stats */}
+        {/* Criteria & Extra Stats */}
+        <div className="flex flex-wrap gap-1 justify-center">
+          {match.criteria?.formAdvantage && (
+            <Badge variant="outline" className="text-[9px] border-green-500/50 text-green-500">Formă ✓</Badge>
+          )}
+          {match.criteria?.tableAdvantage && (
+            <Badge variant="outline" className="text-[9px] border-blue-500/50 text-blue-500">Clasament ✓</Badge>
+          )}
+          {match.criteria?.h2hAdvantage && (
+            <Badge variant="outline" className="text-[9px] border-purple-500/50 text-purple-500">H2H ✓</Badge>
+          )}
+        </div>
         <div className="flex gap-1 justify-center">
           <Badge variant="secondary" className="text-[9px]">O2.5: {probs.over25?.toFixed(0)}%</Badge>
           {probs.btts !== undefined && (
