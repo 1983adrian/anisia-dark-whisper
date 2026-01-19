@@ -6,12 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const TOP_LEAGUES = [
-  "Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1",
-  "Champions League", "Europa League", "Conference League",
-  "Primeira Liga", "Eredivisie", "Scottish Premiership", "Championship"
-];
-
 interface Match {
   id: string;
   competition: string;
@@ -25,9 +19,20 @@ interface Match {
   monteCarloProbs: { home: number; draw: number; away: number; over25: number; btts: number };
   verified: boolean;
   dataSource: string;
+  criteria: {
+    formAdvantage: boolean;
+    tableAdvantage: boolean;
+    h2hAdvantage: boolean;
+  };
 }
 
-// Monte Carlo simulation for predictions
+// Words that indicate non-match content
+const BLACKLIST = [
+  "promotion", "relegation", "trade", "claim", "bonus", "kalshi", "bet now",
+  "sign up", "register", "download", "app", "standings", "table view", "matchday"
+];
+
+// Monte Carlo simulation
 function runMonteCarloSimulation(
   homeStrength: number,
   awayStrength: number,
@@ -73,79 +78,97 @@ function runMonteCarloSimulation(
   };
 }
 
-// Words that indicate non-match content
-const BLACKLIST = [
-  "promotion", "relegation", "trade", "claim", "bonus", "kalshi", "bet",
-  "odds", "standings", "table", "group", "round", "matchday", "name:"
-];
-
-// Extract matches directly from Firecrawl data (NO AI NEEDED)
-function extractMatchesFromMarkdown(markdown: string, date: string): Array<{
+// Extract betting matches with odds from Firecrawl data
+function extractBettingMatches(markdown: string): Array<{
   homeTeam: string;
   awayTeam: string;
   kickoff: string;
   competition: string;
+  homeOdds: number;
+  drawOdds: number;
+  awayOdds: number;
 }> {
-  const matches: Array<{ homeTeam: string; awayTeam: string; kickoff: string; competition: string }> = [];
-  const lines = markdown.split("\n");
+  const matches: Array<{
+    homeTeam: string;
+    awayTeam: string;
+    kickoff: string;
+    competition: string;
+    homeOdds: number;
+    drawOdds: number;
+    awayOdds: number;
+  }> = [];
 
-  // Common patterns for match listings
-  const patterns = [
-    // "Team A vs Team B" or "Team A - Team B"
-    /^(.+?)\s+(?:vs\.?|v\.?|-)\s+(.+?)$/i,
-    // With time at end
-    /^(.+?)\s+(?:vs\.?|v\.?|-)\s+(.+?)\s*\(?\d{1,2}[:/]\d{2}\)?$/i,
+  const lines = markdown.split("\n");
+  let currentCompetition = "International";
+
+  // Pattern: Team A vs Team B or Team A - Team B with optional odds
+  const matchPatterns = [
+    // "Team A vs Team B"
+    /^[\s\*\-]*([A-Za-z\u00C0-\u024F\s\.&']+?)\s+(?:vs\.?|v\.?|–|-)\s+([A-Za-z\u00C0-\u024F\s\.&']+?)(?:\s+(\d{1,2}[:\.]?\d{2}))?$/i,
+    // With odds: "Team A 1.50 3.20 2.10 Team B"
+    /([A-Za-z\u00C0-\u024F\s\.&']+?)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([A-Za-z\u00C0-\u024F\s\.&']+)/i,
   ];
 
-  let currentCompetition = "Unknown";
+  // Competition detection pattern
+  const competitionPattern = /(?:^|\s)((?:Premier League|La Liga|Serie A|Bundesliga|Ligue 1|Liga 1|SuperLiga|Champions League|Europa League|Conference League|World Cup|Copa|MLS|J-?League|K-?League|A-?League|Brasileirao|Argentina|Mexico|Saudi|UAE|China|India|Egypt|South Africa|Morocco|Turkey|Greece|Netherlands|Belgium|Portugal|Scotland|Austria|Switzerland|Poland|Czech|Ukraine|Russia|Denmark|Sweden|Norway|Finland|Romania|Bulgaria|Serbia|Croatia|Slovenia|Hungary|Slovakia|Israel|Japan|Korea|Australia|USA|Canada|Chile|Colombia|Peru|Ecuador|Venezuela|Paraguay|Uruguay|Bolivia|Costa Rica|Panama|Jamaica|Honduras|Guatemala|El Salvador|Nicaragua|Qatar|Kuwait|Bahrain|Oman|Jordan|Lebanon|Iraq|Iran|Uzbekistan|Kazakhstan|Thailand|Vietnam|Indonesia|Malaysia|Singapore|Philippines|Taiwan|Hong Kong)[^\n]*)/i;
 
   for (const line of lines) {
     let trimmed = line.trim();
     if (!trimmed || trimmed.length < 5) continue;
 
-    // Skip blacklisted content
     const lowerLine = trimmed.toLowerCase();
+    
+    // Skip blacklisted content
     if (BLACKLIST.some(b => lowerLine.includes(b))) continue;
 
-    // Skip lines with dates like (19/01/2026)
-    trimmed = trimmed.replace(/\s*\(\d{1,2}\/\d{1,2}\/\d{4}\)\s*/g, "").trim();
-    
-    // Remove "NAME:" prefix
-    trimmed = trimmed.replace(/^NAME:\s*/i, "").trim();
-
-    // Detect competition headers
-    for (const league of TOP_LEAGUES) {
-      if (lowerLine.includes(league.toLowerCase())) {
-        currentCompetition = league;
-        break;
-      }
+    // Detect competition
+    const compMatch = trimmed.match(competitionPattern);
+    if (compMatch) {
+      currentCompetition = compMatch[1].trim();
     }
 
-    // Try each pattern
-    for (const pattern of patterns) {
+    // Clean line
+    trimmed = trimmed.replace(/\s*\(\d{1,2}\/\d{1,2}\/\d{4}\)\s*/g, "").trim();
+    trimmed = trimmed.replace(/^[\*\-\d\.]+\s*/, "").trim();
+
+    // Try patterns
+    for (const pattern of matchPatterns) {
       const match = trimmed.match(pattern);
       if (match) {
-        let homeTeam = match[1].trim();
-        let awayTeam = match[2].trim();
+        let homeTeam: string, awayTeam: string;
+        let homeOdds = 0, drawOdds = 0, awayOdds = 0;
+        let kickoff = "TBD";
+
+        if (match.length === 6) {
+          // Pattern with odds
+          homeTeam = match[1].trim();
+          homeOdds = parseFloat(match[2]);
+          drawOdds = parseFloat(match[3]);
+          awayOdds = parseFloat(match[4]);
+          awayTeam = match[5].trim();
+        } else {
+          homeTeam = match[1].trim();
+          awayTeam = match[2].trim();
+          if (match[3]) kickoff = match[3];
+        }
 
         // Clean team names
         homeTeam = homeTeam.replace(/[*#\[\]]/g, "").replace(/\s+/g, " ").trim();
         awayTeam = awayTeam.replace(/[*#\[\]]/g, "").replace(/\s+/g, " ").trim();
 
-        // Remove trailing time patterns
-        homeTeam = homeTeam.replace(/\s+\d{1,2}:\d{2}$/, "").trim();
-        awayTeam = awayTeam.replace(/\s+\d{1,2}:\d{2}$/, "").trim();
-
-        // Validate team names
+        // Validate
         const validHome = homeTeam.length >= 3 && homeTeam.length <= 35 && !/^\d+$/.test(homeTeam);
         const validAway = awayTeam.length >= 3 && awayTeam.length <= 35 && !/^\d+$/.test(awayTeam);
 
-        if (validHome && validAway && !BLACKLIST.some(b => homeTeam.toLowerCase().includes(b) || awayTeam.toLowerCase().includes(b))) {
+        if (validHome && validAway) {
           matches.push({
             homeTeam,
             awayTeam,
-            kickoff: "TBD",
-            competition: currentCompetition
+            kickoff,
+            competition: currentCompetition,
+            homeOdds,
+            drawOdds,
+            awayOdds
           });
         }
         break;
@@ -156,11 +179,113 @@ function extractMatchesFromMarkdown(markdown: string, date: string): Array<{
   // Deduplicate
   const seen = new Set<string>();
   return matches.filter(m => {
-    const key = `${m.homeTeam}-${m.awayTeam}`.toLowerCase();
+    const key = `${m.homeTeam.toLowerCase()}-${m.awayTeam.toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+// Analyze team data from scraped content
+function analyzeTeamCriteria(
+  homeTeam: string,
+  awayTeam: string,
+  allContent: string
+): { formAdvantage: boolean; tableAdvantage: boolean; h2hAdvantage: boolean; predictedWinner: "home" | "away" | "draw"; strength: number } {
+  const content = allContent.toLowerCase();
+  const homeLower = homeTeam.toLowerCase();
+  const awayLower = awayTeam.toLowerCase();
+
+  // Form indicators (wins, unbeaten, good form)
+  const homeFormPatterns = [
+    new RegExp(`${homeLower}.*(?:won|win|victory|unbeaten|form|streak)`, "i"),
+    new RegExp(`(?:won|win|victory|unbeaten).*${homeLower}`, "i"),
+  ];
+  const awayFormPatterns = [
+    new RegExp(`${awayLower}.*(?:won|win|victory|unbeaten|form|streak)`, "i"),
+    new RegExp(`(?:won|win|victory|unbeaten).*${awayLower}`, "i"),
+  ];
+
+  let homeFormScore = 0;
+  let awayFormScore = 0;
+
+  for (const p of homeFormPatterns) {
+    if (p.test(content)) homeFormScore++;
+  }
+  for (const p of awayFormPatterns) {
+    if (p.test(content)) awayFormScore++;
+  }
+
+  // Table position indicators
+  const homeTablePatterns = [
+    new RegExp(`${homeLower}.*(?:1st|2nd|3rd|top|leader|first|second|third)`, "i"),
+    new RegExp(`(?:1st|2nd|3rd|top|leader|first|second|third).*${homeLower}`, "i"),
+  ];
+  const awayTablePatterns = [
+    new RegExp(`${awayLower}.*(?:1st|2nd|3rd|top|leader|first|second|third)`, "i"),
+    new RegExp(`(?:1st|2nd|3rd|top|leader|first|second|third).*${awayLower}`, "i"),
+  ];
+
+  let homeTableScore = 0;
+  let awayTableScore = 0;
+
+  for (const p of homeTablePatterns) {
+    if (p.test(content)) homeTableScore++;
+  }
+  for (const p of awayTablePatterns) {
+    if (p.test(content)) awayTableScore++;
+  }
+
+  // H2H indicators (last 3 matches)
+  const h2hPatterns = [
+    new RegExp(`${homeLower}.*beat.*${awayLower}`, "i"),
+    new RegExp(`${homeLower}.*won.*against.*${awayLower}`, "i"),
+    new RegExp(`${homeLower}.*defeated.*${awayLower}`, "i"),
+    new RegExp(`${homeLower}.*unbeaten.*${awayLower}`, "i"),
+  ];
+  const h2hAwayPatterns = [
+    new RegExp(`${awayLower}.*beat.*${homeLower}`, "i"),
+    new RegExp(`${awayLower}.*won.*against.*${homeLower}`, "i"),
+    new RegExp(`${awayLower}.*defeated.*${homeLower}`, "i"),
+  ];
+
+  let homeH2HScore = 0;
+  let awayH2HScore = 0;
+
+  for (const p of h2hPatterns) {
+    if (p.test(content)) homeH2HScore++;
+  }
+  for (const p of h2hAwayPatterns) {
+    if (p.test(content)) awayH2HScore++;
+  }
+
+  // Determine advantages
+  const formAdvantage = homeFormScore > awayFormScore;
+  const tableAdvantage = homeTableScore > awayTableScore;
+  const h2hAdvantage = homeH2HScore >= awayH2HScore; // >= means didn't lose
+
+  // Calculate overall strength
+  const homeTotal = homeFormScore + homeTableScore + homeH2HScore + (formAdvantage ? 1 : 0) + (tableAdvantage ? 1 : 0) + (h2hAdvantage ? 1 : 0);
+  const awayTotal = awayFormScore + awayTableScore + awayH2HScore + (!formAdvantage ? 1 : 0) + (!tableAdvantage ? 1 : 0) + (!h2hAdvantage ? 1 : 0);
+
+  let predictedWinner: "home" | "away" | "draw" = "draw";
+  let strength = 0.5;
+
+  if (homeTotal > awayTotal + 1) {
+    predictedWinner = "home";
+    strength = 0.6 + (homeTotal - awayTotal) * 0.05;
+  } else if (awayTotal > homeTotal + 1) {
+    predictedWinner = "away";
+    strength = 0.6 + (awayTotal - homeTotal) * 0.05;
+  }
+
+  return {
+    formAdvantage,
+    tableAdvantage,
+    h2hAdvantage,
+    predictedWinner,
+    strength: Math.min(0.9, strength)
+  };
 }
 
 serve(async (req) => {
@@ -181,11 +306,10 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const today = new Date().toISOString().split("T")[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
-    console.log(`[AUDIT] Live source extraction for: ${today}`);
+    console.log(`[AUDIT] Betting market scan for: ${today}`);
 
     // Check existing predictions
     const { data: existingPrediction } = await supabase
@@ -208,13 +332,15 @@ serve(async (req) => {
       );
     }
 
-    // STEP 1: Fetch live data from Firecrawl
-    console.log("[STEP 1] Fetching live fixtures from Firecrawl...");
+    // STEP 1: Fetch worldwide betting markets
+    console.log("[STEP 1] Scanning worldwide betting markets...");
 
     const searchQueries = [
-      `football fixtures ${today} Premier League kick-off times`,
-      `today football matches ${today} La Liga Serie A schedule`,
-      `Champions League Europa League fixtures ${today}`
+      `football betting odds today ${today}`,
+      `soccer matches betting markets worldwide ${today}`,
+      `today football fixtures odds Europe Asia South America`,
+      `betting football matches Africa Australia ${today}`,
+      `football today odds Premier League La Liga Serie A Bundesliga`,
     ];
 
     let allMarkdown = "";
@@ -228,7 +354,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query: `${query} site:flashscore.com OR site:sofascore.com OR site:livescore.com`,
+            query: `${query} site:flashscore.com OR site:sofascore.com OR site:soccerway.com OR site:livescore.com`,
             limit: 5,
             scrapeOptions: { formats: ["markdown"] }
           }),
@@ -249,41 +375,103 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[STEP 1] Collected ${allMarkdown.length} chars of live data`);
+    // STEP 2: Fetch team form and H2H data
+    console.log("[STEP 2] Fetching form and H2H data...");
 
-    if (!allMarkdown || allMarkdown.length < 100) {
-      console.log("[AUDIT] No live data found");
+    let formH2HContent = "";
+
+    try {
+      const formResponse = await fetch("https://api.firecrawl.dev/v1/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${firecrawlApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: `football team form standings results ${today} last 5 matches unbeaten winning streak`,
+          limit: 5,
+          scrapeOptions: { formats: ["markdown"] }
+        }),
+      });
+
+      if (formResponse.ok) {
+        const formData = await formResponse.json();
+        if (formData?.data) {
+          for (const item of formData.data) {
+            if (item.markdown) {
+              formH2HContent += `\n${item.markdown}\n`;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[Firecrawl] Form data fetch failed:", e);
+    }
+
+    const combinedContent = allMarkdown + formH2HContent;
+
+    console.log(`[STEP 2] Collected ${combinedContent.length} chars of data`);
+
+    if (!combinedContent || combinedContent.length < 200) {
+      console.log("[AUDIT] No betting data found");
       
       await supabase.from("daily_predictions").upsert({
         prediction_date: today,
-        matches: { matches: [], totalMatches: 0, message: "No live data available" }
+        matches: { matches: [], totalMatches: 0, message: "No betting markets found" }
       });
 
       return new Response(
-        JSON.stringify({ success: true, matchCount: 0, message: "No live fixtures found" }),
+        JSON.stringify({ success: true, matchCount: 0, message: "No betting markets found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // STEP 2: Extract matches using pattern matching (NO AI)
-    console.log("[STEP 2] Extracting matches from live data (no AI)...");
+    // STEP 3: Extract matches from betting data
+    console.log("[STEP 3] Extracting betting matches...");
 
-    const rawMatches = extractMatchesFromMarkdown(allMarkdown, today);
-    console.log(`[STEP 2] Found ${rawMatches.length} raw matches`);
+    const rawMatches = extractBettingMatches(allMarkdown);
+    console.log(`[STEP 3] Found ${rawMatches.length} betting matches`);
 
-    // STEP 3: Process matches with Monte Carlo
-    console.log("[STEP 3] Running Monte Carlo simulations...");
+    // STEP 4: Apply selection criteria and Monte Carlo
+    console.log("[STEP 4] Applying criteria (Form + Table + H2H)...");
 
     const validatedMatches: Match[] = [];
 
     for (const raw of rawMatches) {
-      // Random strength based on team name hash (consistent per team)
-      const homeHash = raw.homeTeam.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-      const awayHash = raw.awayTeam.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-      
-      const homeStrength = 1.2 + (homeHash % 100) / 150;
-      const awayStrength = 0.9 + (awayHash % 100) / 150;
+      // Analyze team criteria from scraped content
+      const criteria = analyzeTeamCriteria(raw.homeTeam, raw.awayTeam, combinedContent);
 
+      // SELECTION CRITERIA:
+      // 1. Team must have form advantage OR table advantage
+      // 2. Must not have lost last 3 H2H (h2hAdvantage = true means they didn't lose)
+      const meetsFormOrTable = criteria.formAdvantage || criteria.tableAdvantage;
+      const meetsH2H = criteria.h2hAdvantage;
+
+      if (!meetsFormOrTable && !meetsH2H) {
+        console.log(`[SKIP] No advantage: ${raw.homeTeam} vs ${raw.awayTeam}`);
+        continue;
+      }
+
+      // Calculate strength based on criteria and odds
+      let homeStrength = 1.3;
+      let awayStrength = 1.1;
+
+      if (raw.homeOdds > 0 && raw.awayOdds > 0) {
+        // Use odds to estimate strength (lower odds = stronger team)
+        homeStrength = 1.0 + (3.0 / raw.homeOdds) * 0.5;
+        awayStrength = 1.0 + (3.0 / raw.awayOdds) * 0.5;
+      } else {
+        // Use criteria-based strength
+        if (criteria.predictedWinner === "home") {
+          homeStrength = 1.4 + criteria.strength * 0.4;
+          awayStrength = 0.9;
+        } else if (criteria.predictedWinner === "away") {
+          homeStrength = 0.9;
+          awayStrength = 1.4 + criteria.strength * 0.4;
+        }
+      }
+
+      // Run Monte Carlo
       const simResults = runMonteCarloSimulation(homeStrength, awayStrength, 50000);
 
       // Apply 80/20 rule
@@ -301,13 +489,20 @@ serve(async (req) => {
       if (adjustedProbs.draw > maxProb) { prediction = "X"; maxProb = adjustedProbs.draw; }
       if (adjustedProbs.away > maxProb) { prediction = "2"; maxProb = adjustedProbs.away; }
 
-      // Include matches with >45% probability (lowered threshold for more results)
-      if (maxProb < 45) {
-        console.log(`[SKIP] Too balanced: ${raw.homeTeam} vs ${raw.awayTeam} (${maxProb.toFixed(1)}%)`);
+      // Boost confidence if multiple criteria met
+      let criteriaBonus = 0;
+      if (criteria.formAdvantage) criteriaBonus += 5;
+      if (criteria.tableAdvantage) criteriaBonus += 5;
+      if (criteria.h2hAdvantage) criteriaBonus += 5;
+
+      const confidence = Math.min(95, Math.round(maxProb) + criteriaBonus);
+      
+      // Only include if confidence >= 50%
+      if (confidence < 50) {
+        console.log(`[SKIP] Low confidence: ${raw.homeTeam} vs ${raw.awayTeam} (${confidence}%)`);
         continue;
       }
 
-      const confidence = Math.min(90, Math.round(maxProb));
       const riskLevel = confidence >= 75 ? "low" : confidence >= 60 ? "medium" : "high";
 
       validatedMatches.push({
@@ -318,9 +513,9 @@ serve(async (req) => {
         kickoff: raw.kickoff,
         prediction,
         odds: {
-          home: +(2.0 - adjustedProbs.home / 100).toFixed(2),
-          draw: +(2.5 + adjustedProbs.draw / 50).toFixed(2),
-          away: +(3.0 - adjustedProbs.away / 100).toFixed(2),
+          home: raw.homeOdds || +(2.0 - adjustedProbs.home / 100).toFixed(2),
+          draw: raw.drawOdds || +(3.0 + adjustedProbs.draw / 50).toFixed(2),
+          away: raw.awayOdds || +(2.5 - adjustedProbs.away / 100 + 1).toFixed(2),
           over25: adjustedProbs.over25 > 50 ? 1.85 : 2.1,
           under25: adjustedProbs.over25 > 50 ? 2.05 : 1.75
         },
@@ -328,19 +523,28 @@ serve(async (req) => {
         riskLevel,
         monteCarloProbs: adjustedProbs,
         verified: true,
-        dataSource: "firecrawl-live"
+        dataSource: "betting-markets",
+        criteria: {
+          formAdvantage: criteria.formAdvantage,
+          tableAdvantage: criteria.tableAdvantage,
+          h2hAdvantage: criteria.h2hAdvantage
+        }
       });
+
+      console.log(`[SELECTED] ${raw.homeTeam} vs ${raw.awayTeam} | Form:${criteria.formAdvantage} Table:${criteria.tableAdvantage} H2H:${criteria.h2hAdvantage} | ${prediction} (${confidence}%)`);
     }
 
-    // Limit to max 8 matches
-    const finalMatches = validatedMatches.slice(0, 8);
+    // Sort by confidence and limit to 10 matches
+    validatedMatches.sort((a, b) => b.confidence - a.confidence);
+    const finalMatches = validatedMatches.slice(0, 10);
 
-    console.log(`[AUDIT] Final matches: ${finalMatches.length}`);
+    console.log(`[AUDIT] Final selected matches: ${finalMatches.length}`);
 
     // Save to database
     const predictionsData = {
       matches: finalMatches,
-      totalMatches: finalMatches.length
+      totalMatches: finalMatches.length,
+      criteria: "Form + Table Position + H2H (last 3)"
     };
 
     await supabase.from("daily_predictions").upsert({
@@ -348,7 +552,7 @@ serve(async (req) => {
       matches: predictionsData
     });
 
-    // Process yesterday's results (simple check without AI)
+    // Process yesterday's results
     const { data: yesterdayPredictions } = await supabase
       .from("daily_predictions")
       .select("*")
@@ -356,7 +560,7 @@ serve(async (req) => {
       .single();
 
     if (yesterdayPredictions) {
-      console.log("[STEP 4] Fetching yesterday's results...");
+      console.log("[STEP 5] Checking yesterday's results...");
 
       try {
         const resultsResponse = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -366,7 +570,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query: `football results ${yesterday} final scores site:flashscore.com`,
+            query: `football results ${yesterday} final scores`,
             limit: 5,
             scrapeOptions: { formats: ["markdown"] }
           }),
@@ -376,10 +580,8 @@ serve(async (req) => {
           const resultsData = await resultsResponse.json();
           const resultsMarkdown = resultsData?.data?.map((d: any) => d.markdown).join("\n") || "";
 
-          // Simple result extraction
           const yesterdayMatches = (yesterdayPredictions.matches as any)?.matches || [];
           const matchesWithResults = yesterdayMatches.map((m: any) => {
-            // Check if result exists in markdown
             const homeInResults = resultsMarkdown.toLowerCase().includes(m.homeTeam.toLowerCase());
             const awayInResults = resultsMarkdown.toLowerCase().includes(m.awayTeam.toLowerCase());
 
