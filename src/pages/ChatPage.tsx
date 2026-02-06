@@ -216,7 +216,7 @@ export default function ChatPage() {
           <ScrollArea className="flex-1" ref={scrollRef}>
             <div className="max-w-3xl mx-auto px-4 py-4">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} role={msg.role} content={msg.content} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
+                <ChatMessage key={msg.id} role={msg.role} content={msg.content} enableTypewriter={true} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
               ))}
               {isStreaming && streamingContent && (
                 <ChatMessage role="assistant" content={streamingContent} onSpeak={() => {}} isSpeaking={false} />

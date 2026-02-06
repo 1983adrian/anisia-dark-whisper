@@ -1,4 +1,4 @@
-import { Sparkles, Cloud, Shield, Database, Cpu, Palette } from 'lucide-react';
+import { Sparkles, Cloud, Shield, Database, Cpu, Palette, Box, Brain, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
 
@@ -37,12 +37,30 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
       label: "UX/UI Design",
       prompt: "Cum aplic principiile Gestalt și psihologia cognitivă pentru a îmbunătăți UX-ul aplicației mele?",
       color: "text-purple-400"
+    },
+    {
+      icon: Box,
+      label: "WebContainers",
+      prompt: "Explică-mi cum funcționează WebContainers pentru a rula Node.js complet în browser fără server.",
+      color: "text-cyan-400"
+    },
+    {
+      icon: Brain,
+      label: "LLM Models",
+      prompt: "Cum implementez un sistem RAG (Retrieval Augmented Generation) cu vector embeddings și LLM?",
+      color: "text-pink-400"
+    },
+    {
+      icon: RefreshCw,
+      label: "Self-Healing Loop",
+      prompt: "Cum creez un sistem self-healing cu circuit breakers, auto-recovery și chaos engineering?",
+      color: "text-yellow-400"
     }
   ];
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8">
-      <div className="max-w-3xl w-full text-center space-y-8">
+      <div className="max-w-4xl w-full text-center space-y-8">
         {/* Avatar & Title */}
         <div className="flex flex-col items-center gap-4">
           <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-primary/20">
@@ -58,22 +76,22 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
               <Sparkles className="h-5 w-5 text-primary" />
             </h1>
             <p className="text-muted-foreground mt-2 text-sm">
-              Software Engineering • Cloud • Security • Data • Design
+              Cloud • Security • Data • Systems • Design • WebContainers • LLM • Self-Healing
             </p>
           </div>
         </div>
 
         {/* Capability Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-4">
           {capabilities.map((cap) => (
             <Button
               key={cap.label}
               variant="outline"
-              className="h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors"
+              className="h-auto py-4 px-3 flex flex-col items-center gap-2 hover:bg-accent/50 transition-colors"
               onClick={() => onStartChat(cap.prompt)}
             >
               <cap.icon className={`h-6 w-6 ${cap.color}`} />
-              <span className="text-sm font-medium">{cap.label}</span>
+              <span className="text-xs font-medium text-center leading-tight">{cap.label}</span>
             </Button>
           ))}
         </div>
