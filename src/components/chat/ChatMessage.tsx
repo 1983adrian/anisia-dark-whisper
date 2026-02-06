@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
 import { GameRenderer } from './GameRenderer';
+import { useTypewriter } from '@/hooks/useTypewriter';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string | null;
   isStreaming?: boolean;
+  enableTypewriter?: boolean;
   onSpeak?: () => void;
   isSpeaking?: boolean;
 }
@@ -81,11 +83,21 @@ export const ChatMessage = memo(function ChatMessage({
   content,
   imageUrl,
   isStreaming,
+  enableTypewriter = false,
   onSpeak,
   isSpeaking
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
-  const parsedContent = useMemo(() => parseContent(content), [content]);
+  
+  // Typewriter effect at 60ms per character for assistant messages
+  const { displayedText, isTyping } = useTypewriter(content, {
+    speed: 60,
+    enabled: enableTypewriter && role === 'assistant'
+  });
+  
+  const textToShow = enableTypewriter && role === 'assistant' ? displayedText : content;
+  const parsedContent = useMemo(() => parseContent(textToShow), [textToShow]);
+  const showTypingCursor = isTyping || isStreaming;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -157,7 +169,7 @@ export const ChatMessage = memo(function ChatMessage({
                     <div
                       className={cn(
                         "markdown-content leading-7",
-                        isStreaming && index === parsedContent.length - 1 && "typing-cursor"
+                        showTypingCursor && index === parsedContent.length - 1 && "typing-cursor"
                       )}
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(part.content) }}
                     />
@@ -167,7 +179,7 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
 
             {/* Actions for assistant messages - ChatGPT style */}
-            {role === 'assistant' && !isStreaming && content && (
+            {role === 'assistant' && !isStreaming && !isTyping && content && (
               <div className="flex items-center gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                   size="icon"
