@@ -82,66 +82,75 @@ export default function ChatPage() {
         body: JSON.stringify({ messages: chatMessages, imageData })
       });
 
-      // If backend returns JSON (e.g. quota / rate limit), handle gracefully
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await response.json().catch(() => null as any);
-        if (json?.limited) {
-          const voiceMessage =
-            json?.reason === 'rate_limit'
-              ? 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.'
-              : 'Momentan s-a atins limita de utilizare. Încearcă din nou mai târziu. Dacă ai vocea activată, îți pot citi răspunsul când revine disponibil.';
-
+      if (!response.ok) {
+        // Handle rate limit errors
+        if (response.status === 429) {
+          const voiceMessage = 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.';
           await addMessage(conversation.id, 'assistant', voiceMessage);
           if (voiceEnabled) speak(voiceMessage);
           return;
         }
-
-        if (!response.ok) {
-          throw new Error(json?.error || 'Eroare la comunicarea cu AI');
+        if (response.status === 402) {
+          const voiceMessage = 'Momentan s-a atins limita de utilizare. Încearcă din nou mai târziu.';
+          await addMessage(conversation.id, 'assistant', voiceMessage);
+          if (voiceEnabled) speak(voiceMessage);
+          return;
         }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Eroare la comunicarea cu AI');
+      }
 
-        // Non-stream JSON success (rare) fallback
-        const text = (json?.text || json?.message || '').toString();
-        if (text) {
-          await addMessage(conversation.id, 'assistant', text);
-          if (voiceEnabled) speak(text);
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Handle JSON response (non-streaming)
+      if (contentType.includes('application/json')) {
+        const json = await response.json();
+        const assistantMessage = json.content || json.message || json.text || '';
+        
+        if (assistantMessage) {
+          await addMessage(conversation.id, 'assistant', assistantMessage);
+          if (voiceEnabled) speak(assistantMessage);
+        } else {
+          throw new Error('Nu am primit un răspuns valid de la AI');
         }
         return;
       }
 
-      if (!response.ok) {
-        throw new Error('Eroare la comunicarea cu AI');
-      }
-
-      // Handle streaming response
+      // Handle streaming SSE response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
+      let buffer = '';
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process complete lines
+          let newlineIndex: number;
+          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+            let line = buffer.slice(0, newlineIndex);
+            buffer = buffer.slice(newlineIndex + 1);
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
+            if (line.endsWith('\r')) line = line.slice(0, -1);
+            if (line.startsWith(':') || line.trim() === '') continue;
+            if (!line.startsWith('data: ')) continue;
 
-              try {
-                const parsed = JSON.parse(data);
-                const deltaContent = parsed.choices?.[0]?.delta?.content;
-                if (deltaContent) {
-                  assistantMessage += deltaContent;
-                  setStreamingContent(assistantMessage);
-                }
-              } catch {
-                // Skip invalid JSON
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const deltaContent = parsed.choices?.[0]?.delta?.content;
+              if (deltaContent) {
+                assistantMessage += deltaContent;
+                setStreamingContent(assistantMessage);
               }
+            } catch {
+              // Skip invalid JSON
             }
           }
         }
@@ -152,7 +161,6 @@ export default function ChatPage() {
         await addMessage(conversation.id, 'assistant', assistantMessage);
         setStreamingContent('');
         
-        // Speak if voice enabled
         if (voiceEnabled) {
           speak(assistantMessage);
         }
