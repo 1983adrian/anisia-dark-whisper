@@ -1057,32 +1057,49 @@ serve(async (req) => {
 
     console.log("Processing chat request with full conversation history");
 
-    // Use Lovable AI proxy
-    const response = await fetch("https://ai.lovable.dev/api/chat", {
+    // Use Lovable AI Gateway
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        "x-supabase-project-ref": Deno.env.get("SUPABASE_PROJECT_REF") || "",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
         messages: fullMessages,
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         max_tokens: 16384,
         temperature: 0.7,
       }),
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const errorText = await response.text();
       console.error("AI API error:", errorText);
       throw new Error(`AI API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "Nu am putut genera un răspuns.";
     console.log("Chat response received successfully");
 
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
