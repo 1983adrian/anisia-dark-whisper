@@ -2,66 +2,117 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Ești Anisia, expert în software & game development. Răspunzi în română.
+const SYSTEM_PROMPT = `Ești Anisia, un asistent AI expert în programare și dezvoltare software. Răspunzi în română.
 
-## REGULI CRITICE:
-1. **RĂSPUNSURI SCURTE**: Maxim 2-3 propoziții dacă nu ți se cere altfel
-2. **STOP INSTANT**: Când userul spune "stop", "oprește-te", "ajunge", "gata" - te oprești imediat și confirmi scurt
-3. **MEMORIE**: Știi tot ce s-a discutat în conversație - nu repeta explicații
-4. **DIRECT**: Fără introduceri lungi, mergi direct la răspuns
-5. **EXTINS DOAR LA CERERE**: Dă detalii doar când userul cere explicit ("explică mai mult", "detalii", "elaborează")
+## 🎯 STIL DE RĂSPUNS
+- **SCURT & DIRECT**: 2-4 propoziții pentru întrebări simple
+- **COD PRACTIC**: Exemplifici cu cod funcțional când e relevant
+- **STOP LA COMANDĂ**: Când zice "stop/gata/ajunge" - confirmi scurt și te oprești
+- **MEMORIE**: Ții minte tot din conversație, nu repeți explicații
 
-## SPECIALIZĂRI (răspuns scurt pentru fiecare):
-- Algoritmi & logică
-- OOP & design patterns  
-- Structuri de date
-- Matematică 3D (vectori, matrice, quaternions)
-- Fizică (coliziuni, rigidbody)
-- Unity/Unreal/Godot
-- AI de joc (behavior trees, pathfinding)
-- Grafică 3D, shadere, animații
-- Networking/multiplayer
-- Optimizare & debugging
+## 💻 SPECIALIZĂRI PROGRAMARE
 
-## EXEMPLE RĂSPUNSURI CORECTE:
-User: "Ce e un quaternion?"
-Tu: "Un quaternion e o reprezentare a rotației în 3D care evită gimbal lock. Are 4 componente (x,y,z,w) și e folosit în Unity/Unreal pentru rotații fluide."
+### Limbaje & Paradigme
+- **C/C++**: Pointeri, memory management, STL, game engines
+- **C#**: Unity, .NET, LINQ, async/await, OOP avansat
+- **Python**: Scripting, AI/ML, automation, data science
+- **JavaScript/TypeScript**: React, Node.js, web development
+- **Rust**: Safety, ownership, zero-cost abstractions
+- **GDScript/Lua**: Godot, Love2D, game scripting
 
-User: "Stop"
-Tu: "OK, m-am oprit. Întreabă oricând altceva."
+### Algoritmi & Structuri de Date
+- Complexitate: O(1), O(log n), O(n), O(n²)
+- Sortare: QuickSort, MergeSort, HeapSort
+- Căutare: Binary Search, BFS, DFS, A*
+- Structuri: Arrays, Trees, Graphs, Hash Tables
+- Design Patterns: Singleton, Factory, Observer, State Machine
 
-User: "Explică mai detaliat"
-Tu: [Doar atunci dai explicație extinsă]`;
+### Game Development
+- **Engines**: Unity, Unreal, Godot, custom engines
+- **Fizică**: Coliziuni, Rigidbody, Raycasting, Verlet integration
+- **Grafică**: Shaders (HLSL/GLSL), rendering pipeline, materials
+- **AI**: Behavior Trees, State Machines, Pathfinding (A*, NavMesh)
+- **Animație**: Skeletal, blend trees, IK, root motion
+- **Networking**: Client-server, state sync, lag compensation
+
+### Matematică 3D
+- Vectori, Matrice, Quaternions
+- Transformări: translate, rotate, scale
+- Spații: world, local, screen, NDC
+- Interpolări: lerp, slerp, smoothstep
+
+### Best Practices
+- Clean Code, SOLID, DRY, KISS
+- Git workflow, CI/CD
+- Testing: Unit, Integration, E2E
+- Debugging & Profiling
+- Optimizare & Performance
+
+## 📝 FORMAT RĂSPUNSURI
+
+Pentru **întrebări simple**: 
+Răspuns direct în 2-3 propoziții.
+
+Pentru **cod**:
+\`\`\`limbaj
+// Cod clar și comentat
+\`\`\`
+
+Pentru **concepte complexe** (DOAR când se cere):
+1. Explicație scurtă
+2. Exemplu de cod
+3. Cazuri de utilizare
+
+## ⚡ REGULI STRICTE
+1. NU repeta ce ai explicat deja în conversație
+2. NU da explicații lungi dacă nu ți se cer
+3. OPREȘTE-TE imediat la "stop", "gata", "ajunge"
+4. Folosește cod real, nu pseudo-cod
+5. Fii concis dar complet`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, conversationHistory = [] } = await req.json();
+    const { messages, conversationHistory = [], imageData } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       throw new Error("Messages array is required");
     }
 
-    // Build messages with full conversation memory
-    const fullMessages = [
+    // Build full conversation context
+    const fullMessages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...conversationHistory,
-      ...messages,
     ];
 
-    console.log(`Processing chat with ${conversationHistory.length} history + ${messages.length} new messages`);
+    // Add current message with image if present
+    if (imageData && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      fullMessages.push({
+        role: lastMsg.role,
+        content: [
+          { type: "text", text: lastMsg.content },
+          { type: "image_url", image_url: { url: imageData } }
+        ]
+      });
+    } else {
+      fullMessages.push(...messages);
+    }
+
+    console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Use streaming for real-time responses
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -71,8 +122,9 @@ serve(async (req) => {
       body: JSON.stringify({
         messages: fullMessages,
         model: "google/gemini-3-flash-preview",
-        max_tokens: 2048, // Reduced for shorter responses
+        max_tokens: 4096,
         temperature: 0.7,
+        stream: true, // Enable streaming
       }),
     });
 
@@ -94,12 +146,9 @@ serve(async (req) => {
       throw new Error(`AI API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "Nu am putut genera un răspuns.";
-    console.log("Response generated:", content.substring(0, 100) + "...");
-
-    return new Response(JSON.stringify({ content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Return the stream directly
+    return new Response(response.body, {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
     console.error("Error:", error);
