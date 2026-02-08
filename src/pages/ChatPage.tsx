@@ -5,6 +5,7 @@ import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { WelcomeScreen } from '@/components/chat/WelcomeScreen';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
+import { TaskIndicator } from '@/components/chat/TaskIndicator';
 import { AuthPage } from '@/components/auth/AuthPage';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
@@ -229,17 +230,15 @@ export default function ChatPage() {
               {messages.map((msg) => (
                 <ChatMessage key={msg.id} role={msg.role} content={msg.content} enableTypewriter={true} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
               ))}
-              {isStreaming && streamingContent && (
-                <ChatMessage role="assistant" content={streamingContent} onSpeak={() => {}} isSpeaking={false} />
-              )}
-              {isStreaming && !streamingContent && (
-                <div className="flex items-center gap-3 p-4">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                  </div>
-                  <span className="text-muted-foreground">Anisia scrie...</span>
-                </div>
-              )}
+                {/* Task indicator - shows what Anisia is doing */}
+                {isStreaming && (
+                  <TaskIndicator isActive={isStreaming} content={streamingContent} />
+                )}
+                
+                {/* Streaming message */}
+                {isStreaming && streamingContent && (
+                  <ChatMessage role="assistant" content={streamingContent} onSpeak={() => {}} isSpeaking={false} />
+                )}
             </div>
           </ScrollArea>
         )}
