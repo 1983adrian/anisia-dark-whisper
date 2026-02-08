@@ -62,24 +62,27 @@ export default function ChatPage() {
       // Add user message
       await addMessage(conversation.id, 'user', content, imageData);
 
-      // Prepare messages for API
-      const chatMessages = [
-        ...messages.map(m => ({
-          role: m.role,
-          content: m.content,
-          imageUrl: m.image_url
-        })),
-        { role: 'user', content, imageUrl: imageData }
-      ];
+      // Prepare conversation history (all previous messages)
+      const conversationHistory = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
 
-      // Call chat API
+      // Current message
+      const currentMessage = [{ role: 'user', content }];
+
+      // Call chat API with separated history and new message
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
         },
-        body: JSON.stringify({ messages: chatMessages, imageData })
+        body: JSON.stringify({ 
+          messages: currentMessage, 
+          conversationHistory,
+          imageData 
+        })
       });
 
       if (!response.ok) {
