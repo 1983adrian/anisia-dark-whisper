@@ -79,7 +79,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, conversationHistory = [], imageData } = await req.json();
+    const { messages, conversationHistory = [], files = [] } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       throw new Error("Messages array is required");
@@ -91,21 +91,35 @@ serve(async (req) => {
       ...conversationHistory,
     ];
 
-    // Add current message with image if present
-    if (imageData && messages.length > 0) {
+    // Add current message with multiple files if present
+    if (files.length > 0 && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
+      const contentParts: any[] = [{ type: "text", text: lastMsg.content }];
+      
+      // Add all images
+      for (const file of files) {
+        if (file.type?.startsWith('image/')) {
+          contentParts.push({
+            type: "image_url",
+            image_url: { url: file.data }
+          });
+        } else if (file.type === 'application/pdf' || 
+                   file.type?.includes('text') ||
+                   file.type?.includes('document')) {
+          // For documents, add description
+          contentParts[0].text += `\n\n[Fișier atașat: ${file.name}]`;
+        }
+      }
+      
       fullMessages.push({
         role: lastMsg.role,
-        content: [
-          { type: "text", text: lastMsg.content },
-          { type: "image_url", image_url: { url: imageData } }
-        ]
+        content: contentParts
       });
     } else {
       fullMessages.push(...messages);
     }
 
-    console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new`);
+    console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new + ${files.length} files`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {

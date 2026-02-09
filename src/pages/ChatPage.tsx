@@ -37,7 +37,7 @@ export default function ChatPage() {
     }
   }, [messages, streamingContent]);
 
-  const handleSendMessage = useCallback(async (content: string, imageFile?: File) => {
+  const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
     if (!user) return;
 
     let conversation = currentConversation;
@@ -50,18 +50,26 @@ export default function ChatPage() {
     setStreamingContent('');
     
     try {
-      // Convert image to base64 if present
-      let imageData: string | undefined;
-      if (imageFile) {
-        const reader = new FileReader();
-        imageData = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(imageFile);
-        });
+      // Convert files to base64
+      const filesData: { type: string; data: string; name: string }[] = [];
+      if (files && files.length > 0) {
+        for (const file of files) {
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+          filesData.push({
+            type: file.type,
+            data: base64,
+            name: file.name
+          });
+        }
       }
 
-      // Add user message
-      await addMessage(conversation.id, 'user', content, imageData);
+      // Add user message (show first image if any)
+      const firstImage = filesData.find(f => f.type.startsWith('image/'));
+      await addMessage(conversation.id, 'user', content, firstImage?.data);
 
       // Prepare conversation history (all previous messages)
       const conversationHistory = messages.map(m => ({
@@ -72,7 +80,7 @@ export default function ChatPage() {
       // Current message
       const currentMessage = [{ role: 'user', content }];
 
-      // Call chat API with separated history and new message
+      // Call chat API with files
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: 'POST',
         headers: {
@@ -82,7 +90,7 @@ export default function ChatPage() {
         body: JSON.stringify({ 
           messages: currentMessage, 
           conversationHistory,
-          imageData 
+          files: filesData
         })
       });
 
