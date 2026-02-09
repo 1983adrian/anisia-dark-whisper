@@ -48,25 +48,44 @@ function parseContent(content: string): { type: 'text' | 'game'; content: string
   return parts;
 }
 
-// Simple markdown renderer
+// Enhanced markdown renderer with better styling
 function renderMarkdown(content: string) {
+  // Code blocks with syntax highlighting style
   let html = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="bg-[#1e1e1e] p-4 rounded-lg overflow-x-auto my-3 text-sm"><code class="font-mono text-gray-300">${escapeHtml(code.trim())}</code></pre>`;
+    const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
+    return `<div class="code-block-wrapper">${langLabel}<pre class="code-block"><code>${escapeHtml(code.trim())}</code></pre></div>`;
   });
 
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-sm font-mono text-gray-300">$1</code>');
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mb-2 mt-4">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-semibold mb-2 mt-4">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-semibold mb-2 mt-4">$1</h1>');
-  html = html.replace(/^\- (.+)$/gm, '<li class="ml-4">• $1</li>');
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>');
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline" target="_blank" rel="noopener">$1</a>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  
+  // Bold and italic
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
+  
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-4 mb-2 text-foreground">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-5 mb-2 text-foreground">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-6 mb-3 text-foreground">$1</h1>');
+  
+  // Lists with proper styling
+  html = html.replace(/^\- (.+)$/gm, '<li class="list-item">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li class="list-item-numbered">$1</li>');
+  
+  // Blockquotes
+  html = html.replace(/^> (.+)$/gm, '<blockquote class="border-l-3 border-primary pl-4 my-2 text-muted-foreground italic">$1</blockquote>');
+  
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline font-medium" target="_blank" rel="noopener">$1</a>');
+  
+  // Horizontal rule
+  html = html.replace(/^---$/gm, '<hr class="my-4 border-border" />');
+  
+  // Paragraphs
   html = html.replace(/\n\n/g, '</p><p class="mb-3">');
   html = html.replace(/\n/g, '<br/>');
 
-  return `<p class="mb-3">${html}</p>`;
+  return `<div class="prose-content"><p class="mb-3">${html}</p></div>`;
 }
 
 function escapeHtml(text: string) {
