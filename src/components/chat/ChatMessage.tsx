@@ -114,9 +114,9 @@ export const ChatMessage = memo(function ChatMessage({
   };
 
   return (
-    <div className="py-6 group">
-      <div className="max-w-3xl mx-auto px-4">
-        <div className="flex gap-4">
+    <div className="py-6 group overflow-hidden">
+      <div className="max-w-full mx-auto px-4">
+        <div className="flex gap-4 overflow-hidden">
           {/* Avatar - only for assistant */}
           {role === 'assistant' && (
             <div className="flex-shrink-0">
@@ -132,7 +132,7 @@ export const ChatMessage = memo(function ChatMessage({
 
           {/* Content */}
           <div className={cn(
-            "flex-1 min-w-0",
+            "flex-1 min-w-0 overflow-hidden",
             role === 'user' && "ml-12"
           )}>
             {/* Role label */}
@@ -160,17 +160,18 @@ export const ChatMessage = memo(function ChatMessage({
             )}
 
             {/* Parsed content (text and games) */}
-            <div className="text-foreground">
+            <div className="text-foreground break-words overflow-hidden">
               {parsedContent.map((part, index) => (
-                <div key={index}>
+                <div key={index} className="overflow-hidden">
                   {part.type === 'game' ? (
                     <GameRenderer gameCode={part.content} />
                   ) : (
                     <div
                       className={cn(
-                        "markdown-content leading-7",
+                        "markdown-content leading-7 break-words overflow-wrap-anywhere",
                         showTypingCursor && index === parsedContent.length - 1 && "typing-cursor"
                       )}
+                      style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(part.content) }}
                     />
                   )}
