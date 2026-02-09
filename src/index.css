@@ -125,7 +125,62 @@
   }
 }
 
-/* Markdown styling for chat messages */
+/* Enhanced Prose Content Styling */
+.prose-content {
+  @apply text-foreground leading-relaxed;
+}
+
+.prose-content p {
+  @apply mb-3 last:mb-0;
+}
+
+.prose-content ul,
+.prose-content ol {
+  @apply mb-3 pl-4;
+}
+
+.prose-content .list-item {
+  @apply mb-1.5 pl-2 relative;
+}
+
+.prose-content .list-item::before {
+  content: '•';
+  @apply absolute -left-2 text-primary font-bold;
+}
+
+.prose-content .list-item-numbered {
+  @apply mb-1.5 pl-2 list-decimal ml-4;
+}
+
+/* Code block styling */
+.code-block-wrapper {
+  @apply relative my-4 rounded-xl overflow-hidden;
+  background: linear-gradient(180deg, hsl(0 0% 10%) 0%, hsl(0 0% 8%) 100%);
+  border: 1px solid hsl(0 0% 15%);
+}
+
+.code-block-wrapper .code-lang {
+  @apply absolute top-2 right-3 text-xs text-muted-foreground uppercase tracking-wider font-medium;
+}
+
+.code-block {
+  @apply p-4 overflow-x-auto text-sm;
+  background: transparent;
+}
+
+.code-block code {
+  @apply font-mono text-sm leading-relaxed;
+  color: hsl(0 0% 85%);
+}
+
+/* Inline code */
+.inline-code {
+  @apply px-1.5 py-0.5 rounded text-sm font-mono;
+  background: hsl(0 0% 15%);
+  color: hsl(262 80% 75%);
+}
+
+/* Markdown content base */
 .markdown-content {
   @apply leading-relaxed;
 }
@@ -134,31 +189,10 @@
   @apply mb-3 last:mb-0;
 }
 
-.markdown-content ul,
-.markdown-content ol {
-  @apply mb-3 pl-6;
-}
-
-.markdown-content li {
-  @apply mb-1;
-}
-
-.markdown-content code {
-  @apply bg-secondary px-1.5 py-0.5 rounded text-sm font-mono;
-}
-
-.markdown-content pre {
-  @apply bg-secondary p-4 rounded-lg overflow-x-auto mb-3;
-}
-
-.markdown-content pre code {
-  @apply bg-transparent p-0;
-}
-
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3 {
-  @apply font-semibold mb-2 mt-4 first:mt-0;
+  @apply font-bold mb-2 mt-4 first:mt-0 text-foreground;
 }
 
 .markdown-content h1 {
@@ -174,11 +208,11 @@
 }
 
 .markdown-content blockquote {
-  @apply border-l-2 border-primary pl-4 italic text-muted-foreground mb-3;
+  @apply border-l-2 border-primary pl-4 italic text-muted-foreground my-3;
 }
 
 .markdown-content a {
-  @apply text-primary hover:underline;
+  @apply text-primary hover:underline font-medium;
 }
 
 /* Typing animation */
@@ -190,7 +224,7 @@
 .typing-cursor::after {
   content: '▋';
   animation: blink 1s infinite;
-  @apply text-primary;
+  @apply text-primary ml-0.5;
 }
 
 /* Glow effect for Anisia */
@@ -201,4 +235,10 @@
 /* Smooth transitions */
 .transition-smooth {
   @apply transition-all duration-200 ease-in-out;
+}
+
+/* Selection styling */
+::selection {
+  background: hsl(262 80% 60% / 0.3);
+  color: hsl(0 0% 100%);
 }
