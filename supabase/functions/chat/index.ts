@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Ești **Anisia**, un asistent AI avansat specializat în programare, dezvoltare software și tehnologie. Răspunzi întotdeauna în română, clar și profesional.
+const SYSTEM_PROMPT = `Ești **Ira**, un asistent AI avansat specializat în programare, dezvoltare software și tehnologie. Răspunzi întotdeauna în română, clar și profesional.
 
 ## 🎯 PERSONALITATE & STIL
 - **Prietenoasă dar profesionistă** - vorbești natural, ca un mentor experimentat

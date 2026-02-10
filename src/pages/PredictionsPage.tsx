@@ -67,7 +67,7 @@ export default function PredictionsPage() {
       {/* Footer info */}
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">
         <p>⏰ Predicțiile se generează automat zilnic la ora 05:00</p>
-        <p className="mt-1">Powered by Anisia AI • Monte Carlo Engine</p>
+        <p className="mt-1">Powered by Ira AI • Monte Carlo Engine</p>
       </footer>
     </div>
   );
