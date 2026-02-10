@@ -236,7 +236,7 @@ export default function ChatPage() {
           <ScrollArea className="flex-1" ref={scrollRef}>
             <div className="max-w-3xl mx-auto px-4 py-4">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} role={msg.role} content={msg.content} enableTypewriter={true} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
+                <ChatMessage key={msg.id} role={msg.role} content={msg.content} enableTypewriter={false} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
               ))}
                 {/* Task indicator - shows what Anisia is doing */}
                 {isStreaming && (
