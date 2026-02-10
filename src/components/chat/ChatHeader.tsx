@@ -16,7 +16,7 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({
-  title = 'Anisia',
+  title = 'Ira',
   onToggleSidebar,
   voiceEnabled,
   onToggleVoice,
@@ -42,13 +42,13 @@ export function ChatHeader({
           <div className="w-8 h-8 rounded-full overflow-hidden anisia-glow">
             <img
               src={anisiaAvatar}
-              alt="Anisia"
+              alt="Ira"
               className="w-full h-full object-cover"
             />
           </div>
           <div>
             <h1 className="font-semibold text-foreground">{title}</h1>
-            <p className="text-xs text-muted-foreground">AI Assistant</p>
+             <p className="text-xs text-muted-foreground">AI Assistant</p>
           </div>
         </div>
       </div>

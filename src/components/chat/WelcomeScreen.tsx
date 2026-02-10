@@ -14,7 +14,7 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
           <div className="w-24 h-24 rounded-full overflow-hidden ring-2 ring-primary/20">
             <img
               src={anisiaAvatar}
-              alt="Anisia"
+              alt="Ira"
               className="w-full h-full object-cover"
             />
           </div>
@@ -24,7 +24,7 @@ export function WelcomeScreen({ onStartChat }: WelcomeScreenProps) {
               <Sparkles className="h-5 w-5 text-primary" />
             </h1>
             <p className="text-muted-foreground mt-3 text-sm leading-relaxed max-w-md mx-auto">
-              Sunt Anisia, asistentul tău AI pentru dezvoltare software, game development și inginerie de sistem.
+              Sunt Ira, asistentul tău AI pentru dezvoltare software, game development și inginerie de sistem.
             </p>
           </div>
         </div>

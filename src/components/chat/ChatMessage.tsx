@@ -128,7 +128,7 @@ export const ChatMessage = memo(function ChatMessage({
     if (!imageUrl) return;
     const link = document.createElement('a');
     link.href = imageUrl;
-    link.download = `anisia-image-${Date.now()}.png`;
+    link.download = `ira-image-${Date.now()}.png`;
     link.click();
   };
 
@@ -142,7 +142,7 @@ export const ChatMessage = memo(function ChatMessage({
               <div className="w-8 h-8 rounded-full overflow-hidden">
                 <img
                   src={anisiaAvatar}
-                  alt="Anisia"
+                  alt="Ira"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -156,7 +156,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}>
             {/* Role label */}
             <div className="font-semibold text-sm mb-1 text-foreground">
-              {role === 'assistant' ? 'Anisia' : 'Tu'}
+              {role === 'assistant' ? 'Ira' : 'Tu'}
             </div>
 
             {/* Image if present */}
