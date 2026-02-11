@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Ești Ira — un asistent AI de clasă mondială cu expertiză enciclopedică. Vorbești doar în română.
+const SYSTEM_PROMPT = `Ești Ira — un asistent AI de clasă mondială cu expertiză enciclopedică și ACCES LA INTERNET ÎN TIMP REAL. Vorbești doar în română.
 
 COMPORTAMENT CRITIC:
 - Răspunzi direct, fără introduceri inutile.
@@ -24,6 +24,13 @@ CORECȚIE ACTIVĂ — OBLIGATORIU:
 - Preferă să fii corectă și utilă decât politicoasă și greșită.
 - Dacă utilizatorul insistă pe ceva greșit, explică DE CE greșește cu argumente și surse concrete.
 - Nu folosi formulări vagi ("depinde", "poate fi") când răspunsul e clar și definitiv.
+
+CĂUTARE WEB — AI ACCES LA INTERNET:
+- Ai acces la informații în timp real de pe internet prin căutare web.
+- Când primești context de căutare web, FOLOSEȘTE-L ca sursă principală pentru răspuns.
+- Citează sursele natural: "Conform [sursa]..." sau "Am găsit că..." 
+- Dacă informația din căutare contrazice cunoștințele tale, preferă informația actuală din căutare.
+- Menționează data/actualitatea informației când e relevant.
 
 REGULI:
 1. Simplu → 1-2 propoziții.
@@ -152,6 +159,124 @@ Documentare: ADR, RFC, C4 model, API docs (OpenAPI/Swagger)
 Team leadership, mentoring, 1:1s, onboarding, hiring
 Engineering culture: blameless postmortems, incident management, SRE practices, SLI/SLO/SLA`;
 
+// Detect if a query needs real-time web search
+function needsWebSearch(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  
+  // Keywords that indicate need for current/real-time info
+  const searchTriggers = [
+    // Time-sensitive
+    'acum', 'azi', 'astăzi', 'ieri', 'recent', 'ultimele', 'ultima', 'ultimul',
+    'în prezent', 'momentan', 'curent', 'actual', 'actuală', 'actuale',
+    '2024', '2025', '2026', 'anul acesta', 'luna aceasta', 'săptămâna aceasta',
+    'cel mai nou', 'cea mai nouă', 'cele mai noi', 'latest', 'newest',
+    // Factual queries
+    'cine este', 'cine e', 'ce este', 'ce e', 'câți', 'câte', 'câtă',
+    'unde este', 'unde e', 'când', 'de ce', 'cum se', 
+    'ce s-a întâmplat', 'ce se întâmplă',
+    // Research
+    'caută', 'găsește', 'informații despre', 'detalii despre',
+    'spune-mi despre', 'povestește-mi despre', 'explică-mi',
+    'știri', 'noutăți', 'news',
+    // Prices, stats, data
+    'preț', 'prețul', 'cost', 'scor', 'clasament', 'rezultat', 'rezultate',
+    'statistici', 'date', 'cifre',
+    // People, places, events
+    'președinte', 'ministru', 'campion', 'câștigător',
+    'capitala', 'populația', 'suprafața',
+    // Products, tech
+    'versiune', 'update', 'lansare', 'release',
+    // Explicit search requests
+    'search', 'google', 'caută pe net', 'caută pe internet', 'caută online',
+    'verifică', 'check', 'confirm',
+    // Questions about real things
+    'vreme', 'meteo', 'temperatură', 'curs valutar', 'bitcoin', 'crypto',
+    'film', 'serial', 'joc nou', 'eveniment',
+    // Who/what/where
+    'who is', 'what is', 'where is', 'how much', 'how many',
+  ];
+
+  return searchTriggers.some(trigger => lowerText.includes(trigger));
+}
+
+// Build a concise search query from user message
+function buildSearchQuery(text: string): string {
+  // Remove filler words and keep the core query
+  let query = text
+    .replace(/\b(ira|hey|salut|bună|te rog|poți|să-mi|spui|zici|caută|găsește|pe net|pe internet|online)\b/gi, '')
+    .replace(/[?!.]+/g, '')
+    .trim();
+  
+  // If too short after cleanup, use original
+  if (query.length < 5) query = text;
+  
+  // Cap at reasonable length
+  if (query.length > 200) query = query.slice(0, 200);
+  
+  return query;
+}
+
+// Perform web search using Firecrawl
+async function performWebSearch(query: string): Promise<{ content: string; sources: string[] } | null> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) {
+    console.log("No FIRECRAWL_API_KEY, skipping web search");
+    return null;
+  }
+
+  try {
+    console.log("Searching web for:", query);
+    
+    const response = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        limit: 5,
+        lang: "ro",
+        scrapeOptions: {
+          formats: ["markdown"],
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Firecrawl search failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const results = data.data || [];
+    
+    if (results.length === 0) return null;
+
+    const sources: string[] = [];
+    let searchContent = "";
+
+    for (const result of results) {
+      const url = result.url || "";
+      const title = result.title || result.metadata?.title || "";
+      const description = result.description || "";
+      const markdown = result.markdown || "";
+      
+      if (url) sources.push(url);
+      
+      // Take first ~500 chars of markdown content per result
+      const content = markdown.slice(0, 500) || description;
+      searchContent += `\n\n### ${title}\nSursă: ${url}\n${content}`;
+    }
+
+    console.log(`Found ${results.length} web results`);
+    return { content: searchContent.trim(), sources };
+  } catch (error) {
+    console.error("Web search error:", error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -164,9 +289,24 @@ serve(async (req) => {
       throw new Error("Messages array is required");
     }
 
+    // Get the user's current message
+    const userMessage = messages[messages.length - 1]?.content || "";
+
+    // Check if web search is needed and perform it
+    let webContext = "";
+    if (needsWebSearch(userMessage)) {
+      const searchQuery = buildSearchQuery(userMessage);
+      const searchResults = await performWebSearch(searchQuery);
+      
+      if (searchResults) {
+        webContext = `\n\n📡 INFORMAȚII ÎN TIMP REAL DIN CĂUTARE WEB (folosește aceste date ca sursă principală):\n${searchResults.content}\n\nSurse: ${searchResults.sources.join(", ")}\n\n---\nRăspunde bazându-te pe informațiile de mai sus. Citează sursele natural.`;
+      }
+    }
+
     // Build full conversation context
+    const systemContent = SYSTEM_PROMPT + webContext;
     const fullMessages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemContent },
       ...conversationHistory,
     ];
 
@@ -175,7 +315,6 @@ serve(async (req) => {
       const lastMsg = messages[messages.length - 1];
       const contentParts: any[] = [{ type: "text", text: lastMsg.content }];
       
-      // Add all images
       for (const file of files) {
         if (file.type?.startsWith('image/')) {
           contentParts.push({
@@ -185,7 +324,6 @@ serve(async (req) => {
         } else if (file.type === 'application/pdf' || 
                    file.type?.includes('text') ||
                    file.type?.includes('document')) {
-          // For documents, add description
           contentParts[0].text += `\n\n[Fișier atașat: ${file.name}]`;
         }
       }
@@ -198,14 +336,13 @@ serve(async (req) => {
       fullMessages.push(...messages);
     }
 
-    console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new + ${files.length} files`);
+    console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new + ${files.length} files + web:${webContext ? 'yes' : 'no'}`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Use streaming for real-time responses
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -239,7 +376,6 @@ serve(async (req) => {
       throw new Error(`AI API error: ${response.status}`);
     }
 
-    // Return the stream directly
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
