@@ -159,8 +159,32 @@
   border: 1px solid hsl(0 0% 15%);
 }
 
-.code-block-wrapper .code-lang {
-  @apply absolute top-2 right-3 text-xs text-muted-foreground uppercase tracking-wider font-medium;
+.code-header {
+  @apply flex items-center justify-between px-4 py-2;
+  background: hsl(0 0% 12%);
+  border-bottom: 1px solid hsl(0 0% 15%);
+}
+
+.code-header .code-lang {
+  @apply text-xs text-muted-foreground uppercase tracking-wider font-medium;
+  position: static;
+}
+
+.copy-code-btn {
+  @apply flex items-center justify-center w-7 h-7 rounded-md transition-all duration-200;
+  color: hsl(0 0% 55%);
+  background: transparent;
+  cursor: pointer;
+  border: none;
+}
+
+.copy-code-btn:hover {
+  color: hsl(0 0% 90%);
+  background: hsl(0 0% 18%);
+}
+
+.copy-code-btn.copied {
+  color: hsl(142 70% 55%);
 }
 
 .code-block {
