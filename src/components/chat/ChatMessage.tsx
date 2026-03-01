@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
 import { GameRenderer } from './GameRenderer';
+import { CodePreview } from './CodePreview';
 import { useTypewriter } from '@/hooks/useTypewriter';
 
 interface ChatMessageProps {
@@ -17,20 +18,21 @@ interface ChatMessageProps {
 }
 
 // Parse content to separate text and games
-function parseContent(content: string): { type: 'text' | 'game'; content: string }[] {
-  const parts: { type: 'text' | 'game'; content: string }[] = [];
-  const gameRegex = /<game>([\s\S]*?)<\/game>/g;
+function parseContent(content: string): { type: 'text' | 'game' | 'preview'; content: string }[] {
+  const parts: { type: 'text' | 'game' | 'preview'; content: string }[] = [];
+  // Match both <game> and <preview> tags
+  const tagRegex = /<(game|preview)>([\s\S]*?)<\/\1>/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = gameRegex.exec(content)) !== null) {
+  while ((match = tagRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       const textBefore = content.slice(lastIndex, match.index).trim();
       if (textBefore) {
         parts.push({ type: 'text', content: textBefore });
       }
     }
-    parts.push({ type: 'game', content: match[1] });
+    parts.push({ type: match[1] as 'game' | 'preview', content: match[2] });
     lastIndex = match.index + match[0].length;
   }
 
@@ -195,6 +197,8 @@ export const ChatMessage = memo(function ChatMessage({
                 <div key={index} className="overflow-hidden">
                   {part.type === 'game' ? (
                     <GameRenderer gameCode={part.content} />
+                  ) : part.type === 'preview' ? (
+                    <CodePreview code={part.content} />
                   ) : (
                     <div
                       className={cn(
