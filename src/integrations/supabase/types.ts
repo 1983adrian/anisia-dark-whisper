@@ -118,6 +118,45 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          slug: string
+          title: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          slug?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          slug?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string

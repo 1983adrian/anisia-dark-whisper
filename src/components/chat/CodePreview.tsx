@@ -1,7 +1,8 @@
 import { memo, useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useProjects } from '@/hooks/useProjects';
 
 interface CodePreviewProps {
   code: string;
@@ -12,8 +13,10 @@ export const CodePreview = memo(function CodePreview({ code, title }: CodePrevie
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [key, setKey] = useState(0);
   const [showCode, setShowCode] = useState(false);
+  const [saved, setSaved] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { saveProject } = useProjects();
 
   const createDocument = (raw: string) => {
     let html = raw.trim();
@@ -76,6 +79,12 @@ ${html}
     }
   };
 
+  const handleSave = async () => {
+    const projectTitle = title || `Proiect ${new Date().toLocaleDateString('ro-RO')}`;
+    const result = await saveProject(code, projectTitle);
+    if (result) setSaved(true);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -91,6 +100,10 @@ ${html}
           <span>{title || 'Preview Live'}</span>
         </div>
         <div className="flex items-center gap-1">
+          <Button size="sm" variant={saved ? "default" : "ghost"} className={cn("h-7 gap-1 px-2 text-xs", saved && "bg-green-600 hover:bg-green-700 text-white")} onClick={handleSave} disabled={saved} title="Salvează proiectul">
+            <Save className="h-3.5 w-3.5" />
+            {saved ? 'Salvat!' : 'Salvează'}
+          </Button>
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowCode(!showCode)} title={showCode ? 'Ascunde codul' : 'Vezi codul'}>
             <Code2 className="h-3.5 w-3.5" />
           </Button>

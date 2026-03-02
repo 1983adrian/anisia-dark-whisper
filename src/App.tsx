@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ChatPage from "./pages/ChatPage";
 import PredictionsPage from "./pages/PredictionsPage";
+import ProjectsPage from "./pages/ProjectsPage";
+import ProjectViewPage from "./pages/ProjectViewPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +22,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<ChatPage />} />
             <Route path="/predictions" element={<PredictionsPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/p/:slug" element={<ProjectViewPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
