@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MessageSquarePlus, Search, Trash2, Edit2, Check, X, LogOut, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { MessageSquarePlus, Search, Trash2, Edit2, Check, X, LogOut, Settings, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,6 +31,7 @@ export function ChatSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const navigate = useNavigate();
 
   const filteredConversations = conversations.filter(c =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -165,6 +167,14 @@ export function ChatSidebar({
 
       {/* Footer */}
       <div className="p-4 border-t border-sidebar-border space-y-2">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-sidebar-foreground"
+          onClick={() => navigate('/projects')}
+        >
+          <FolderOpen className="h-4 w-4" />
+          Proiecte Salvate
+        </Button>
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-sidebar-foreground"
