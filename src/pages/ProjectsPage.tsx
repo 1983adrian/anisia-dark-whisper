@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Globe, Lock, Trash2, ExternalLink, Copy, Check, Pencil, Eye } from 'lucide-react';
+import { ArrowLeft, Globe, Lock, Trash2, ExternalLink, Copy, Check, Pencil, Eye, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -36,7 +36,6 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
@@ -47,7 +46,6 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Search */}
         <Input
           placeholder="Caută proiecte..."
           value={search}
@@ -55,7 +53,6 @@ export default function ProjectsPage() {
           className="mb-6"
         />
 
-        {/* Projects Grid */}
         {loading ? (
           <div className="text-center text-muted-foreground py-12">Se încarcă proiectele...</div>
         ) : filtered.length === 0 ? (
@@ -88,6 +85,16 @@ export default function ProjectsPage() {
                   <Button size="sm" variant="outline" onClick={() => navigate(`/p/${project.slug}`)}>
                     <Eye className="h-3.5 w-3.5 mr-1" /> Vezi
                   </Button>
+
+                  {/* EDIT IN CHAT — key feature */}
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => navigate(`/?edit=${project.id}`)}
+                    className="gap-1"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Editează
+                  </Button>
                   
                   <Button
                     size="sm"
@@ -95,12 +102,12 @@ export default function ProjectsPage() {
                     onClick={() => togglePublic(project.id, !project.is_public)}
                   >
                     {project.is_public ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Globe className="h-3.5 w-3.5 mr-1" />}
-                    {project.is_public ? 'Fă privat' : 'Fă public'}
+                    {project.is_public ? 'Fă privat' : 'Publică'}
                   </Button>
 
                   {project.is_public && (
                     <Button size="sm" variant="outline" onClick={() => copyLink(project.slug, project.id)}>
-                      {copiedId === project.id ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                      {copiedId === project.id ? <Check className="h-3.5 w-3.5 mr-1" /> : <Link2 className="h-3.5 w-3.5 mr-1" />}
                       {copiedId === project.id ? 'Copiat!' : 'Link'}
                     </Button>
                   )}

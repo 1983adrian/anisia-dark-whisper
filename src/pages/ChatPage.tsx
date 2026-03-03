@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessage } from '@/components/chat/ChatMessage';
@@ -11,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useVoice } from '@/hooks/useVoice';
+import { useProjects, Project } from '@/hooks/useProjects';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -24,18 +27,52 @@ export default function ChatPage() {
   
   const { voiceEnabled, setVoiceEnabled, toggleVoice, isSpeaking, isPaused, speak, pause, resume, stop } = useVoice();
   
-  // Sidebar hidden by default
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Load project from URL params (?edit=projectId)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && user) {
+      (async () => {
+        const { data } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', editId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (data) {
+          const project = data as unknown as Project;
+          setActiveProject(project);
+          // Clear the param
+          setSearchParams({}, { replace: true });
+          // Auto-send edit context message
+          toast.info(`Proiect încărcat: "${project.title}" — spune-i Irei ce vrei să schimbi!`);
+        }
+      })();
+    }
+  }, [searchParams, user]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, streamingContent]);
+
+  const handleProjectSaved = useCallback((project: Project) => {
+    setActiveProject(project);
+  }, []);
+
+  const handleEditProject = useCallback((project: Project) => {
+    setActiveProject(project);
+    toast.info(`Editezi "${project.title}" — scrie ce vrei schimbat!`);
+  }, []);
 
   const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
     if (!user) return;
@@ -50,7 +87,6 @@ export default function ChatPage() {
     setStreamingContent('');
     
     try {
-      // Convert files to base64
       const filesData: { type: string; data: string; name: string }[] = [];
       if (files && files.length > 0) {
         for (const file of files) {
@@ -59,43 +95,33 @@ export default function ChatPage() {
             reader.onload = () => resolve(reader.result as string);
             reader.readAsDataURL(file);
           });
-          filesData.push({
-            type: file.type,
-            data: base64,
-            name: file.name
-          });
+          filesData.push({ type: file.type, data: base64, name: file.name });
         }
       }
 
-      // Add user message (show first image if any)
       const firstImage = filesData.find(f => f.type.startsWith('image/'));
       await addMessage(conversation.id, 'user', content, firstImage?.data);
 
-      // Prepare conversation history (all previous messages)
-      const conversationHistory = messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
+      const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
 
-      // Current message
-      const currentMessage = [{ role: 'user', content }];
+      // If we have an active project, inject its context
+      let enhancedContent = content;
+      if (activeProject) {
+        enhancedContent = `[CONTEXT PROIECT ACTIV: "${activeProject.title}" (ID: ${activeProject.id}, v${activeProject.version})]\n[CODUL ACTUAL AL PROIECTULUI:]\n\`\`\`html\n${activeProject.code.slice(0, 8000)}\n\`\`\`\n\n[CEREREA UTILIZATORULUI:] ${content}`;
+      }
 
-      // Call chat API with files
+      const currentMessage = [{ role: 'user', content: enhancedContent }];
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
         },
-        body: JSON.stringify({ 
-          messages: currentMessage, 
-          conversationHistory,
-          files: filesData
-        })
+        body: JSON.stringify({ messages: currentMessage, conversationHistory, files: filesData })
       });
 
       if (!response.ok) {
-        // Handle rate limit errors
         if (response.status === 429) {
           const voiceMessage = 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.';
           await addMessage(conversation.id, 'assistant', voiceMessage);
@@ -114,11 +140,9 @@ export default function ChatPage() {
 
       const contentType = response.headers.get('content-type') || '';
       
-      // Handle JSON response (non-streaming)
       if (contentType.includes('application/json')) {
         const json = await response.json();
         const assistantMessage = json.content || json.message || json.text || '';
-        
         if (assistantMessage) {
           await addMessage(conversation.id, 'assistant', assistantMessage);
           if (voiceEnabled) speak(assistantMessage);
@@ -128,7 +152,6 @@ export default function ChatPage() {
         return;
       }
 
-      // Handle streaming SSE response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
@@ -141,7 +164,6 @@ export default function ChatPage() {
 
           buffer += decoder.decode(value, { stream: true });
           
-          // Process complete lines
           let newlineIndex: number;
           while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
             let line = buffer.slice(0, newlineIndex);
@@ -161,21 +183,15 @@ export default function ChatPage() {
                 assistantMessage += deltaContent;
                 setStreamingContent(assistantMessage);
               }
-            } catch {
-              // Skip invalid JSON
-            }
+            } catch { /* skip */ }
           }
         }
       }
 
-      // Save assistant message
       if (assistantMessage) {
         await addMessage(conversation.id, 'assistant', assistantMessage);
         setStreamingContent('');
-        
-        if (voiceEnabled) {
-          speak(assistantMessage);
-        }
+        if (voiceEnabled) speak(assistantMessage);
       }
     } catch (error) {
       console.error('Chat error:', error);
@@ -184,22 +200,17 @@ export default function ChatPage() {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak]);
+  }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak, activeProject]);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Se încarcă...</div>;
   if (!user) return <AuthPage />;
 
   return (
     <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
-      {/* Overlay for mobile when sidebar is open */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
       )}
       
-      {/* Sidebar - hidden by default, slides in */}
       <div className={cn(
         "fixed inset-y-0 left-0 z-50 w-72 transition-transform duration-300",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -207,7 +218,7 @@ export default function ChatPage() {
         <ChatSidebar 
           conversations={conversations} 
           currentConversation={currentConversation} 
-          onNewChat={() => { createConversation(); setSidebarOpen(false); }} 
+          onNewChat={() => { createConversation(); setActiveProject(null); setSidebarOpen(false); }} 
           onSelectConversation={(c) => { selectConversation(c); setSidebarOpen(false); }} 
           onDeleteConversation={deleteConversation} 
           onRenameConversation={updateConversationTitle} 
@@ -216,10 +227,9 @@ export default function ChatPage() {
         />
       </div>
 
-      {/* Main chat area - full width always */}
       <div className="flex-1 flex flex-col min-w-0 w-full">
         <ChatHeader 
-          title={currentConversation?.title || 'Anisia'} 
+          title={activeProject ? `✏️ ${activeProject.title}` : (currentConversation?.title || 'Anisia')} 
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
           voiceEnabled={voiceEnabled} 
           onToggleVoice={toggleVoice} 
@@ -230,23 +240,51 @@ export default function ChatPage() {
           onStop={stop} 
         />
 
+        {/* Active project banner */}
+        {activeProject && (
+          <div className="px-4 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
+            <span className="text-sm text-primary font-medium">
+              📝 Editezi: <strong>{activeProject.title}</strong> (v{activeProject.version})
+            </span>
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+              onClick={() => setActiveProject(null)}
+            >
+              Închide proiectul
+            </button>
+          </div>
+        )}
+
         {!currentConversation && messages.length === 0 ? (
           <WelcomeScreen onStartChat={(p) => p ? handleSendMessage(p) : createConversation()} />
         ) : (
           <ScrollArea className="flex-1" ref={scrollRef}>
             <div className="max-w-3xl mx-auto px-4 py-4">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} role={msg.role} content={msg.content} enableTypewriter={false} onSpeak={() => speak(msg.content)} isSpeaking={isSpeaking} />
+                <ChatMessage
+                  key={msg.id}
+                  role={msg.role}
+                  content={msg.content}
+                  enableTypewriter={false}
+                  onSpeak={() => speak(msg.content)}
+                  isSpeaking={isSpeaking}
+                  activeProject={activeProject}
+                  onProjectSaved={handleProjectSaved}
+                  onEditProject={handleEditProject}
+                />
               ))}
-                {/* Task indicator - shows what Anisia is doing */}
-                {isStreaming && (
-                  <TaskIndicator isActive={isStreaming} content={streamingContent} />
-                )}
-                
-                {/* Streaming message */}
-                {isStreaming && streamingContent && (
-                  <ChatMessage role="assistant" content={streamingContent} onSpeak={() => {}} isSpeaking={false} />
-                )}
+              {isStreaming && <TaskIndicator isActive={isStreaming} content={streamingContent} />}
+              {isStreaming && streamingContent && (
+                <ChatMessage
+                  role="assistant"
+                  content={streamingContent}
+                  onSpeak={() => {}}
+                  isSpeaking={false}
+                  activeProject={activeProject}
+                  onProjectSaved={handleProjectSaved}
+                  onEditProject={handleEditProject}
+                />
+              )}
             </div>
           </ScrollArea>
         )}

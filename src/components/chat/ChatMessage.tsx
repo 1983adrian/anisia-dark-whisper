@@ -6,6 +6,7 @@ import anisiaAvatar from '@/assets/anisia-avatar.png';
 import { GameRenderer } from './GameRenderer';
 import { CodePreview } from './CodePreview';
 import { useTypewriter } from '@/hooks/useTypewriter';
+import { Project } from '@/hooks/useProjects';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
@@ -15,12 +16,14 @@ interface ChatMessageProps {
   enableTypewriter?: boolean;
   onSpeak?: () => void;
   isSpeaking?: boolean;
+  activeProject?: Project | null;
+  onProjectSaved?: (project: Project) => void;
+  onEditProject?: (project: Project) => void;
 }
 
 // Parse content to separate text and games
 function parseContent(content: string): { type: 'text' | 'game' | 'preview'; content: string }[] {
   const parts: { type: 'text' | 'game' | 'preview'; content: string }[] = [];
-  // Match both <game> and <preview> tags
   const tagRegex = /<(game|preview)>([\s\S]*?)<\/\1>/g;
   let lastIndex = 0;
   let match;
@@ -28,9 +31,7 @@ function parseContent(content: string): { type: 'text' | 'game' | 'preview'; con
   while ((match = tagRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       const textBefore = content.slice(lastIndex, match.index).trim();
-      if (textBefore) {
-        parts.push({ type: 'text', content: textBefore });
-      }
+      if (textBefore) parts.push({ type: 'text', content: textBefore });
     }
     parts.push({ type: match[1] as 'game' | 'preview', content: match[2] });
     lastIndex = match.index + match[0].length;
@@ -38,32 +39,20 @@ function parseContent(content: string): { type: 'text' | 'game' | 'preview'; con
 
   if (lastIndex < content.length) {
     const remainingText = content.slice(lastIndex).trim();
-    if (remainingText) {
-      parts.push({ type: 'text', content: remainingText });
-    }
+    if (remainingText) parts.push({ type: 'text', content: remainingText });
   }
 
-  if (parts.length === 0) {
-    parts.push({ type: 'text', content });
-  }
-
+  if (parts.length === 0) parts.push({ type: 'text', content });
   return parts;
 }
 
 function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-// Enhanced markdown renderer - code blocks get a copy button via data attributes
 function renderMarkdown(content: string) {
   let codeBlockIndex = 0;
   
-  // Code blocks with copy button
   let html = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
     const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
     const idx = codeBlockIndex++;
@@ -79,32 +68,17 @@ function renderMarkdown(content: string) {
     </div>`;
   });
 
-  // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-  
-  // Bold and italic
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
-  
-  // Headers
   html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-4 mb-2 text-foreground">$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-5 mb-2 text-foreground">$1</h2>');
   html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-6 mb-3 text-foreground">$1</h1>');
-  
-  // Lists
   html = html.replace(/^\- (.+)$/gm, '<li class="list-item">$1</li>');
   html = html.replace(/^\d+\. (.+)$/gm, '<li class="list-item-numbered">$1</li>');
-  
-  // Blockquotes
   html = html.replace(/^> (.+)$/gm, '<blockquote class="border-l-3 border-primary pl-4 my-2 text-muted-foreground italic">$1</blockquote>');
-  
-  // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline font-medium" target="_blank" rel="noopener">$1</a>');
-  
-  // Horizontal rule
   html = html.replace(/^---$/gm, '<hr class="my-4 border-border" />');
-  
-  // Paragraphs
   html = html.replace(/\n\n/g, '</p><p class="mb-3">');
   html = html.replace(/\n/g, '<br/>');
 
@@ -112,13 +86,8 @@ function renderMarkdown(content: string) {
 }
 
 export const ChatMessage = memo(function ChatMessage({
-  role,
-  content,
-  imageUrl,
-  isStreaming,
-  enableTypewriter = false,
-  onSpeak,
-  isSpeaking
+  role, content, imageUrl, isStreaming, enableTypewriter = false,
+  onSpeak, isSpeaking, activeProject, onProjectSaved, onEditProject
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
   
@@ -145,7 +114,6 @@ export const ChatMessage = memo(function ChatMessage({
     link.click();
   };
 
-  // Handle clicks on copy-code buttons inside rendered HTML
   const handleContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     const copyBtn = target.closest('.copy-code-btn') as HTMLElement | null;
@@ -198,7 +166,12 @@ export const ChatMessage = memo(function ChatMessage({
                   {part.type === 'game' ? (
                     <GameRenderer gameCode={part.content} />
                   ) : part.type === 'preview' ? (
-                    <CodePreview code={part.content} />
+                    <CodePreview
+                      code={part.content}
+                      existingProject={activeProject}
+                      onProjectSaved={onProjectSaved}
+                      onEditRequest={onEditProject}
+                    />
                   ) : (
                     <div
                       className={cn(

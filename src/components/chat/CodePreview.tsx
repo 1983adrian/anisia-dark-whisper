@@ -1,27 +1,31 @@
-import { memo, useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink, Save } from 'lucide-react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink, Save, Pencil, Globe, Link2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useProjects } from '@/hooks/useProjects';
+import { useProjects, Project } from '@/hooks/useProjects';
+import { toast } from 'sonner';
 
 interface CodePreviewProps {
   code: string;
   title?: string;
+  existingProject?: Project | null;
+  onProjectSaved?: (project: Project) => void;
+  onEditRequest?: (project: Project) => void;
 }
 
-export const CodePreview = memo(function CodePreview({ code, title }: CodePreviewProps) {
+export const CodePreview = memo(function CodePreview({ code, title, existingProject, onProjectSaved, onEditRequest }: CodePreviewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [key, setKey] = useState(0);
   const [showCode, setShowCode] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedProject, setSavedProject] = useState<Project | null>(existingProject || null);
+  const [saving, setSaving] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { saveProject } = useProjects();
+  const { saveProject, updateProject, togglePublic } = useProjects();
 
   const createDocument = (raw: string) => {
     let html = raw.trim();
-
-    // If it's not a complete HTML document, wrap it
     if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
       html = `<!DOCTYPE html>
 <html lang="ro">
@@ -44,7 +48,6 @@ ${html}
 </body>
 </html>`;
     }
-
     return html;
   };
 
@@ -64,11 +67,8 @@ ${html}
 
   const handleFullscreen = () => {
     if (!containerRef.current) return;
-    if (!isFullscreen) {
-      containerRef.current.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
+    if (!isFullscreen) containerRef.current.requestFullscreen?.();
+    else document.exitFullscreen?.();
   };
 
   const handleOpenExternal = () => {
@@ -79,11 +79,51 @@ ${html}
     }
   };
 
-  const handleSave = async () => {
-    const projectTitle = title || `Proiect ${new Date().toLocaleDateString('ro-RO')}`;
-    const result = await saveProject(code, projectTitle);
-    if (result) setSaved(true);
-  };
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      if (savedProject) {
+        // Update existing project
+        const updated = await updateProject(savedProject.id, { code });
+        if (updated) {
+          setSavedProject(updated);
+          onProjectSaved?.(updated);
+          toast.success('Proiect actualizat! v' + (updated.version || savedProject.version + 1));
+        }
+      } else {
+        // Create new project
+        const projectTitle = title || `Proiect ${new Date().toLocaleDateString('ro-RO')}`;
+        const result = await saveProject(code, projectTitle);
+        if (result) {
+          setSavedProject(result);
+          onProjectSaved?.(result);
+        }
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [savedProject, code, title, saveProject, updateProject, onProjectSaved]);
+
+  const handleTogglePublic = useCallback(async () => {
+    if (!savedProject) return;
+    await togglePublic(savedProject.id, !savedProject.is_public);
+    setSavedProject(prev => prev ? { ...prev, is_public: !prev.is_public } : null);
+  }, [savedProject, togglePublic]);
+
+  const handleCopyLink = useCallback(() => {
+    if (!savedProject) return;
+    const url = `${window.location.origin}/p/${savedProject.slug}`;
+    navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    toast.success('Link copiat: ' + url);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }, [savedProject]);
+
+  const handleEdit = useCallback(() => {
+    if (savedProject && onEditRequest) {
+      onEditRequest({ ...savedProject, code });
+    }
+  }, [savedProject, code, onEditRequest]);
 
   return (
     <div
@@ -97,13 +137,60 @@ ${html}
       <div className="flex items-center justify-between px-3 py-2 bg-secondary/50 border-b border-border">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Code2 className="h-4 w-4 text-primary" />
-          <span>{title || 'Preview Live'}</span>
+          <span className="truncate max-w-[150px]">{savedProject?.title || title || 'Preview Live'}</span>
+          {savedProject && (
+            <span className="text-xs opacity-60">v{savedProject.version}</span>
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant={saved ? "default" : "ghost"} className={cn("h-7 gap-1 px-2 text-xs", saved && "bg-green-600 hover:bg-green-700 text-white")} onClick={handleSave} disabled={saved} title="Salvează proiectul">
+        <div className="flex items-center gap-1 flex-wrap">
+          {/* Save / Update */}
+          <Button
+            size="sm"
+            variant={savedProject ? "outline" : "default"}
+            className={cn("h-7 gap-1 px-2 text-xs")}
+            onClick={handleSave}
+            disabled={saving}
+            title={savedProject ? "Actualizează proiectul" : "Salvează proiectul"}
+          >
             <Save className="h-3.5 w-3.5" />
-            {saved ? 'Salvat!' : 'Salvează'}
+            {saving ? '...' : savedProject ? 'Actualizează' : 'Salvează'}
           </Button>
+
+          {/* Public toggle */}
+          {savedProject && (
+            <Button
+              size="sm"
+              variant={savedProject.is_public ? "default" : "outline"}
+              className={cn("h-7 gap-1 px-2 text-xs", savedProject.is_public && "bg-green-600 hover:bg-green-700 text-white")}
+              onClick={handleTogglePublic}
+              title={savedProject.is_public ? "Fă privat" : "Publică online"}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              {savedProject.is_public ? 'Public' : 'Publică'}
+            </Button>
+          )}
+
+          {/* Copy link */}
+          {savedProject?.is_public && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={handleCopyLink}
+              title="Copiază linkul public"
+            >
+              {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+              {linkCopied ? 'Copiat!' : 'Link'}
+            </Button>
+          )}
+
+          {/* Edit in chat */}
+          {savedProject && onEditRequest && (
+            <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={handleEdit} title="Editează în chat">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowCode(!showCode)} title={showCode ? 'Ascunde codul' : 'Vezi codul'}>
             <Code2 className="h-3.5 w-3.5" />
           </Button>

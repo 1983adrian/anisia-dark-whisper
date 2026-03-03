@@ -70,9 +70,18 @@ export function useProjects() {
   };
 
   const updateProject = async (id: string, updates: Partial<Pick<Project, 'title' | 'description' | 'code' | 'is_public'>>) => {
+    // First get current version
+    const { data: current } = await supabase
+      .from('projects')
+      .select('version')
+      .eq('id', id)
+      .single();
+
+    const newVersion = ((current as any)?.version || 1) + 1;
+
     const { data, error } = await supabase
       .from('projects')
-      .update({ ...updates, version: undefined })
+      .update({ ...updates, version: newVersion })
       .eq('id', id)
       .select()
       .single();
@@ -82,12 +91,8 @@ export function useProjects() {
       return null;
     }
 
-    // Also increment version via raw update
-    await supabase.from('projects').update({ version: (data as any).version + 1 } as any).eq('id', id);
-
     const project = data as unknown as Project;
     setProjects(prev => prev.map(p => p.id === id ? project : p));
-    toast.success('Proiect actualizat!');
     return project;
   };
 
