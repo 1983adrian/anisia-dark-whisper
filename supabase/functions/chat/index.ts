@@ -220,6 +220,164 @@ async function performWebSearch(query: string): Promise<{ content: string; sourc
   }
 }
 
+function extractAssistantContent(payload: any): string {
+  const raw = payload?.choices?.[0]?.message?.content;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((part) => part?.type === "text" && typeof part?.text === "string")
+      .map((part) => part.text)
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
+function hasPreviewTag(text: string): boolean {
+  return /<preview>[\s\S]*?<\/preview>/i.test(text);
+}
+
+function extractHtmlCodeBlock(text: string): string | null {
+  const htmlBlock = text.match(/```html\s*([\s\S]*?)```/i);
+  if (htmlBlock?.[1]) return htmlBlock[1].trim();
+
+  const genericBlock = text.match(/```\s*([\s\S]*?)```/);
+  if (genericBlock?.[1] && /<([a-z][^\s/>]*)/i.test(genericBlock[1])) {
+    return genericBlock[1].trim();
+  }
+
+  return null;
+}
+
+function ensureFullHtmlDocument(html: string): string {
+  if (/<!doctype html>/i.test(html) && /<html[\s>]/i.test(html)) return html;
+
+  if (/<body[\s>]/i.test(html)) {
+    return `<!DOCTYPE html>\n<html lang="ro">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <script src="https://cdn.tailwindcss.com"></script>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">\n  <title>Preview</title>\n</head>\n${html}\n</html>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Preview</title>
+</head>
+<body style="font-family: Inter, sans-serif;" class="bg-slate-950 text-white">
+  ${html}
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function looksLikeBuildRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  const buildTriggers = [
+    "constru", "build", "creează", "creaza", "fă", "fa", "site", "website", "landing",
+    "pagină", "pagina", "dashboard", "portofoliu", "magazin", "blog", "ui", "frontend",
+    "aplicație", "aplicatie", "html", "css", "javascript", "program", "preview"
+  ];
+
+  return buildTriggers.some((trigger) => t.includes(trigger));
+}
+
+async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey: string): Promise<string | null> {
+  const repairSystemPrompt = `Ești Ira în modul REPARARE OUTPUT. Scop: convertești răspunsul într-un output construibil.
+Obligatoriu:
+1) Max 1-2 propoziții în română.
+2) Apoi <preview> cu HTML complet standalone (<!DOCTYPE html> ...), funcțional.
+3) Fără explicații teoretice.
+4) Răspunsul final trebuie să conțină obligatoriu tag-ul <preview>.`;
+
+  const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
+
+  const repairResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      temperature: 0.2,
+      max_tokens: 8192,
+      stream: false,
+      messages: [
+        { role: "system", content: repairSystemPrompt },
+        { role: "user", content: repairUserPrompt },
+      ],
+    }),
+  });
+
+  if (!repairResponse.ok) return null;
+
+  const repairJson = await repairResponse.json();
+  const repaired = extractAssistantContent(repairJson);
+  return repaired || null;
+}
+
+function buildEmergencyPreview(userMessage: string): string {
+  const safePrompt = escapeHtml(userMessage || "Cerere utilizator");
+
+  return `Ți-am construit direct un preview funcțional, gata de salvat/publicat.
+<preview>
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proiect construit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, sans-serif; }
+    h1,h2 { font-family: 'Space Grotesk', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen">
+  <header class="relative overflow-hidden">
+    <img src="https://picsum.photos/1920/900?random=77" alt="Hero image" class="w-full h-[55vh] object-cover opacity-40" />
+    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent"></div>
+    <div class="absolute inset-0 max-w-5xl mx-auto px-6 flex flex-col justify-center">
+      <span class="text-cyan-300 text-sm uppercase tracking-[0.2em]">Ira Builder</span>
+      <h1 class="text-4xl md:text-6xl font-bold mt-3">Proiect pregătit pentru practică</h1>
+      <p class="mt-4 text-slate-200 max-w-2xl">Am transformat cererea într-o bază construibilă, gata de iterat în chat și de publicat.</p>
+      <div class="mt-6 flex gap-3">
+        <button class="px-5 py-3 rounded-xl bg-cyan-400 text-slate-900 font-semibold">Începe editarea</button>
+        <button class="px-5 py-3 rounded-xl border border-white/30">Publică proiectul</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-12 grid md:grid-cols-2 gap-6">
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+      <h2 class="text-2xl font-semibold mb-3">Cererea ta</h2>
+      <p class="text-slate-300">${safePrompt}</p>
+    </section>
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <h2 class="text-2xl font-semibold mb-3">Ce poți face acum</h2>
+      <ul class="space-y-2 text-slate-300 list-disc pl-5">
+        <li>Apasă Salvează pentru versiune</li>
+        <li>Apasă Publică pentru link online</li>
+        <li>Spune exact ce modificări vrei și iterăm instant</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
+</preview>`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -285,7 +443,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -296,30 +454,56 @@ serve(async (req) => {
         model: "google/gemini-2.5-pro",
         max_tokens: 16384,
         temperature: 0.3,
-        stream: true,
+        stream: false,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    if (!aiResponse.ok) {
+      if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Prea multe cereri. Așteaptă puțin." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
+      if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ error: "Limită de utilizare atinsă." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errorText = await response.text();
+      const errorText = await aiResponse.text();
       console.error("AI API error:", errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      throw new Error(`AI API error: ${aiResponse.status}`);
     }
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    const aiJson = await aiResponse.json();
+    let assistantContent = extractAssistantContent(aiJson);
+
+    if (!assistantContent?.trim()) {
+      throw new Error("Modelul nu a returnat conținut.");
+    }
+
+    const buildIntent = looksLikeBuildRequest(userMessage);
+
+    if (buildIntent && !hasPreviewTag(assistantContent)) {
+      const htmlFromCodeBlock = extractHtmlCodeBlock(assistantContent);
+
+      if (htmlFromCodeBlock) {
+        const fullHtml = ensureFullHtmlDocument(htmlFromCodeBlock);
+        assistantContent = `Gata — l-am transformat în variantă construibilă.\n<preview>\n${fullHtml}\n</preview>`;
+      } else {
+        const repaired = await forcePreviewFromDraft(userMessage, assistantContent, LOVABLE_API_KEY);
+
+        if (repaired && hasPreviewTag(repaired)) {
+          assistantContent = repaired;
+        } else {
+          assistantContent = buildEmergencyPreview(userMessage);
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ content: assistantContent }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Error:", error);
