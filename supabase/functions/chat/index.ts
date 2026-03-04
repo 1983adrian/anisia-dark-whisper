@@ -82,12 +82,14 @@ Când utilizatorul cere ORICE vizual (site, pagină, landing, dashboard, portofo
 - Accent colors pentru CTA-uri, badges, highlights
 - Dark mode sau light mode consistent
 
-**INTERACTIVITATE — MEREU:**
+**INTERACTIVITATE — MEREU (fără elemente moarte):**
 - Hover pe carduri: scale, shadow, color change
 - Navbar sticky cu \`backdrop-blur-md bg-white/80\`
 - Smooth scroll: \`scroll-behavior: smooth\`
 - Animații la scroll cu CSS \`@keyframes\` sau IntersectionObserver
-- Butoane cu hover + active states
+- Butoane cu hover + active states + acțiune reală (scroll/open modal/submit)
+- Linkuri reale către secțiuni existente (fără \`href="#"\` gol)
+- Formulare funcționale cu validare + mesaj de succes
 - Mobile menu funcțional (hamburger cu toggle)
 
 **STRUCTURĂ COMPLETĂ DE SITE:**
@@ -378,6 +380,184 @@ function buildEmergencyPreview(userMessage: string): string {
 </preview>`;
 }
 
+function extractPreviewHtml(text: string): string | null {
+  const match = text.match(/<preview>\s*([\s\S]*?)\s*<\/preview>/i);
+  return match?.[1]?.trim() || null;
+}
+
+function replacePreviewHtml(text: string, html: string): string {
+  return text.replace(/<preview>[\s\S]*?<\/preview>/i, `<preview>\n${html}\n</preview>`);
+}
+
+function hasPlaceholderContent(html: string): boolean {
+  return /(lorem ipsum|placeholder|coming soon|dummy text|to be updated|sample text)/i.test(html);
+}
+
+function injectInteractivityBridge(html: string): string {
+  if (html.includes("iraInteractiveBridge")) return html;
+
+  const bridgeScript = `<script id="iraInteractiveBridge">
+(() => {
+  const normalize = (value = '') => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  const known = {
+    acasa: 'home',
+    home: 'home',
+    despre: 'about',
+    about: 'about',
+    servicii: 'services',
+    services: 'services',
+    proiecte: 'projects',
+    projects: 'projects',
+    galerie: 'gallery',
+    galeriei: 'gallery',
+    gallery: 'gallery',
+    preturi: 'pricing',
+    pret: 'pricing',
+    pricing: 'pricing',
+    contact: 'contact',
+    blog: 'blog'
+  };
+
+  const headingFor = (el) => {
+    const heading = el.querySelector('h1,h2,h3,[data-title]');
+    return heading?.textContent || el.getAttribute('aria-label') || '';
+  };
+
+  const sections = Array.from(document.querySelectorAll('section, main > div, [data-section]'));
+  let sectionIndex = 1;
+
+  sections.forEach((el) => {
+    if (!(el instanceof HTMLElement)) return;
+    if (el.id) return;
+
+    const normalizedHeading = normalize(headingFor(el));
+    let candidate = known[normalizedHeading] || normalizedHeading || ('section-' + (sectionIndex++));
+
+    if (document.getElementById(candidate)) {
+      candidate = candidate + '-' + (sectionIndex++);
+    }
+
+    el.id = candidate;
+  });
+
+  if (!document.getElementById('home')) {
+    const hero = document.querySelector('header, section, main > div');
+    if (hero instanceof HTMLElement && !hero.id) {
+      hero.id = 'home';
+    }
+  }
+
+  const inferTargetFromText = (text = '') => {
+    const t = normalize(text);
+    for (const token of Object.keys(known)) {
+      if (t.includes(token)) return known[token];
+    }
+    return '';
+  };
+
+  const scrollToId = (id) => {
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return false;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  };
+
+  document.querySelectorAll('a').forEach((link) => {
+    if (!(link instanceof HTMLAnchorElement)) return;
+
+    const href = (link.getAttribute('href') || '').trim();
+    if (href && href !== '#' && !href.startsWith('#')) return;
+
+    const explicit = (link.getAttribute('data-target') || '').trim();
+    const inferred = inferTargetFromText(link.textContent || '');
+    const fallback = explicit || inferred || 'home';
+
+    link.setAttribute('href', '#' + fallback);
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (!scrollToId(fallback)) scrollToId('home');
+    });
+  });
+
+  document.querySelectorAll('button').forEach((btn) => {
+    if (!(btn instanceof HTMLButtonElement)) return;
+
+    if (!btn.type) btn.type = 'button';
+    if (btn.closest('form')) return;
+    if (btn.getAttribute('onclick')) return;
+    if (btn.dataset.boundAction === '1') return;
+
+    btn.dataset.boundAction = '1';
+
+    const explicit = (btn.getAttribute('data-target') || '').trim();
+    const inferred = inferTargetFromText(btn.textContent || '');
+    const fallback = explicit || inferred || 'contact';
+
+    btn.addEventListener('click', () => {
+      if (!scrollToId(fallback)) scrollToId('home');
+    });
+  });
+
+  document.querySelectorAll('form').forEach((form) => {
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.dataset.boundSubmit === '1') return;
+
+    form.dataset.boundSubmit = '1';
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const required = Array.from(form.querySelectorAll('[required]')).filter((input) => {
+        const element = input;
+        return !('value' in element) || !String(element.value || '').trim();
+      });
+
+      if (required.length > 0) {
+        const first = required[0];
+        if ('focus' in first && typeof first.focus === 'function') first.focus();
+        return;
+      }
+
+      let message = form.querySelector('.ira-form-success');
+      if (!(message instanceof HTMLElement)) {
+        message = document.createElement('p');
+        message.className = 'ira-form-success';
+        message.style.marginTop = '10px';
+        message.style.color = '#22c55e';
+        message.style.fontWeight = '600';
+        form.appendChild(message);
+      }
+
+      message.textContent = 'Mesaj trimis cu succes.';
+      form.reset();
+    });
+  });
+})();
+</script>`;
+
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${bridgeScript}\n</body>`);
+  }
+
+  return `${html}\n${bridgeScript}`;
+}
+
+function hardenPreviewResponse(text: string): string {
+  const previewHtml = extractPreviewHtml(text);
+  if (!previewHtml) return text;
+
+  let hardenedHtml = ensureFullHtmlDocument(previewHtml);
+  hardenedHtml = injectInteractivityBridge(hardenedHtml);
+
+  return replacePreviewHtml(text, hardenedHtml);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -500,6 +680,21 @@ serve(async (req) => {
           assistantContent = buildEmergencyPreview(userMessage);
         }
       }
+    }
+
+    if (buildIntent && hasPreviewTag(assistantContent)) {
+      const previewHtml = extractPreviewHtml(assistantContent);
+
+      if (previewHtml && hasPlaceholderContent(previewHtml)) {
+        const practicalRepairPrompt = `${assistantContent}\n\nREPARĂ ACUM preview-ul: elimină placeholder-ele și fă toate butoanele/linkurile/formurile funcționale.`;
+        const repaired = await forcePreviewFromDraft(userMessage, practicalRepairPrompt, LOVABLE_API_KEY);
+
+        if (repaired && hasPreviewTag(repaired)) {
+          assistantContent = repaired;
+        }
+      }
+
+      assistantContent = hardenPreviewResponse(assistantContent);
     }
 
     return new Response(JSON.stringify({ content: assistantContent }), {
