@@ -117,6 +117,11 @@ Când utilizatorul cere ORICE vizual (site, pagină, landing, dashboard, portofo
 - Generează <preview> cu versiunea COMPLETĂ actualizată.
 - Spune ce ai schimbat + "Apasă Actualizează pentru a salva."
 
+### CÂND UTILIZATORUL TRIMITE COD DIRECT (blocuri \`\`\`...\`\`\`):
+- Tratează mesajul ca EDITARE de cod, nu ca teorie.
+- Folosește codul primit ca bază și păstrează tot ce nu s-a cerut explicit schimbat.
+- Răspunsul final trebuie să includă <preview> cu varianta completă actualizată.
+
 ### DEBUGGING:
 - Identifică root cause, nu simptomul. Oferă fix-ul exact.
 
@@ -291,6 +296,24 @@ function looksLikeBuildRequest(text: string): boolean {
   ];
 
   return buildTriggers.some((trigger) => t.includes(trigger));
+}
+
+function looksLikeEditRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  const editTriggers = [
+    "modific", "edite", "actualize", "schimb", "refactor", "optimize", "repar", "fix",
+    "după cod", "dupa cod", "pe baza cod", "from code", "based on code"
+  ];
+
+  return editTriggers.some((trigger) => t.includes(trigger));
+}
+
+function containsCodeLikeContent(text: string): boolean {
+  return /```[\s\S]*?```|<!doctype html>|<html[\s>]|<body[\s>]|<div[\s>]|<section[\s>]|<script[\s>]|<style[\s>]|function\s+[a-zA-Z_$]|const\s+[a-zA-Z_$]|class\s+[a-zA-Z_$]/i.test(text);
+}
+
+function hasActiveProjectContext(text: string): boolean {
+  return /\[CONTEXT PROIECT ACTIV:/i.test(text);
 }
 
 async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey: string): Promise<string | null> {
@@ -664,13 +687,20 @@ serve(async (req) => {
     }
 
     const buildIntent = looksLikeBuildRequest(userMessage);
+    const editIntent = looksLikeEditRequest(userMessage);
+    const codeIntent = containsCodeLikeContent(userMessage);
+    const activeProjectIntent = hasActiveProjectContext(userMessage);
+    const shouldEnforcePreview = buildIntent || editIntent || codeIntent || activeProjectIntent;
 
-    if (buildIntent && !hasPreviewTag(assistantContent)) {
+    if (shouldEnforcePreview && !hasPreviewTag(assistantContent)) {
       const htmlFromCodeBlock = extractHtmlCodeBlock(assistantContent);
 
       if (htmlFromCodeBlock) {
         const fullHtml = ensureFullHtmlDocument(htmlFromCodeBlock);
-        assistantContent = `Gata — l-am transformat în variantă construibilă.\n<preview>\n${fullHtml}\n</preview>`;
+        assistantContent = `Gata — l-am transformat în variantă construibilă.
+<preview>
+${fullHtml}
+</preview>`;
       } else {
         const repaired = await forcePreviewFromDraft(userMessage, assistantContent, LOVABLE_API_KEY);
 
@@ -682,7 +712,7 @@ serve(async (req) => {
       }
     }
 
-    if (buildIntent && hasPreviewTag(assistantContent)) {
+    if (shouldEnforcePreview && hasPreviewTag(assistantContent)) {
       const previewHtml = extractPreviewHtml(assistantContent);
 
       if (previewHtml && hasPlaceholderContent(previewHtml)) {

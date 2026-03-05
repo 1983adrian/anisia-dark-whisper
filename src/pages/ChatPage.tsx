@@ -74,6 +74,18 @@ export default function ChatPage() {
     toast.info(`Editezi "${project.title}" — scrie ce vrei schimbat!`);
   }, []);
 
+  const formatProjectContextCode = useCallback((projectCode: string) => {
+    const MAX_CONTEXT_LENGTH = 60000;
+    if (projectCode.length <= MAX_CONTEXT_LENGTH) return projectCode;
+
+    const marker = '\n\n<!-- [COD TRUNCHIAT AUTOMAT PENTRU CONTEXT: secțiunea din mijloc a fost omisă din cauza dimensiunii] -->\n\n';
+    const available = MAX_CONTEXT_LENGTH - marker.length;
+    const headSize = Math.floor(available / 2);
+    const tailSize = available - headSize;
+
+    return `${projectCode.slice(0, headSize)}${marker}${projectCode.slice(-tailSize)}`;
+  }, []);
+
   const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
     if (!user) return;
 
@@ -107,7 +119,7 @@ export default function ChatPage() {
       // If we have an active project, inject its context
       let enhancedContent = content;
       if (activeProject) {
-        enhancedContent = `[CONTEXT PROIECT ACTIV: "${activeProject.title}" (ID: ${activeProject.id}, v${activeProject.version})]\n[CODUL ACTUAL AL PROIECTULUI:]\n\`\`\`html\n${activeProject.code.slice(0, 8000)}\n\`\`\`\n\n[CEREREA UTILIZATORULUI:] ${content}`;
+        enhancedContent = `[CONTEXT PROIECT ACTIV: "${activeProject.title}" (ID: ${activeProject.id}, v${activeProject.version})]\n[CODUL ACTUAL AL PROIECTULUI:]\n\`\`\`html\n${formatProjectContextCode(activeProject.code)}\n\`\`\`\n\n[CEREREA UTILIZATORULUI:] ${content}`;
       }
 
       const currentMessage = [{ role: 'user', content: enhancedContent }];
@@ -200,7 +212,7 @@ export default function ChatPage() {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak, activeProject]);
+  }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak, activeProject, formatProjectContextCode]);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Se încarcă...</div>;
   if (!user) return <AuthPage />;
