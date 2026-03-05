@@ -45,13 +45,13 @@ export function AuthPage() {
             <div className="w-20 h-20 rounded-full overflow-hidden anisia-glow">
               <img
                 src={anisiaAvatar}
-                alt="Anisia"
+            alt="Ira"
                 className="w-full h-full object-cover"
               />
             </div>
           </div>
           <CardTitle className="text-2xl flex items-center justify-center gap-2">
-            Anisia
+            Ira
             <Sparkles className="h-5 w-5 text-primary" />
           </CardTitle>
           <CardDescription>
