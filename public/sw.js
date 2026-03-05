@@ -11,7 +11,7 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "⚽ Predicții Anisia", options)
+    self.registration.showNotification(data.title || "⚽ Predicții Ira", options)
   );
 });
 
