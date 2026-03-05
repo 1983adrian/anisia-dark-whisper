@@ -82,7 +82,8 @@ Când utilizatorul cere ORICE vizual (site, pagină, landing, dashboard, portofo
 - Accent colors pentru CTA-uri, badges, highlights
 - Dark mode sau light mode consistent
 
-**INTERACTIVITATE — MEREU (fără elemente moarte):**
+**INTERACTIVITATE CU JAVASCRIPT — OBLIGATORIU (fără elemente moarte):**
+- FIECARE proiect TREBUIE să aibă JavaScript funcțional, nu doar HTML/CSS static.
 - Hover pe carduri: scale, shadow, color change
 - Navbar sticky cu \`backdrop-blur-md bg-white/80\`
 - Smooth scroll: \`scroll-behavior: smooth\`
@@ -91,6 +92,20 @@ Când utilizatorul cere ORICE vizual (site, pagină, landing, dashboard, portofo
 - Linkuri reale către secțiuni existente (fără \`href="#"\` gol)
 - Formulare funcționale cu validare + mesaj de succes
 - Mobile menu funcțional (hamburger cu toggle)
+- JAVASCRIPT AVANSAT OBLIGATORIU: modal windows, tab switching, accordion, carousel, search/filter, countdown timers, dark/light mode toggle, localStorage, API fetch, animații dinamice
+- Scrie tot JavaScript-ul în tag-uri \`<script>\` în interiorul HTML-ului.
+- Folosește vanilla JS modern (ES6+): const/let, arrow functions, template literals, async/await, destructuring
+- Pentru funcționalități complexe, include CDN-uri: Alpine.js, GSAP, Chart.js, Three.js, Anime.js
+
+**EXEMPLE DE JAVASCRIPT CE TREBUIE INCLUS:**
+- \`document.addEventListener('DOMContentLoaded', () => { ... })\`
+- Toggle mobile menu: \`menuBtn.addEventListener('click', () => nav.classList.toggle('hidden'))\`
+- Modal: \`openModal()\`, \`closeModal()\` cu overlay și animații
+- Tabs: switch conținut dinamic la click
+- Form validation cu regex + feedback vizual
+- Intersection Observer pentru animații la scroll
+- Fetch API pentru date dinamice (unde e cazul)
+- localStorage pentru persistență (dark mode, preferințe)
 
 **STRUCTURĂ COMPLETĂ DE SITE:**
 - Navbar cu logo + meniu + CTA button
