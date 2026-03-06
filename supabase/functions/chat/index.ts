@@ -534,8 +534,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           messages: fullMessages,
-          model: "google/gemini-2.5-pro",
-          max_tokens: 65536,
+          model: "google/gemini-2.5-flash-lite",
           temperature: 0.3,
           stream: false,
         }),
