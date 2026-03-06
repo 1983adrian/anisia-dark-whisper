@@ -46,8 +46,6 @@ function buildSearchQuery(text: string): string {
     .replace(/[?!.]+/g, '')
     .trim();
   
-  if (query.length < 5) query = text;
-  if (query.length > 200) query = query.slice(0, 200);
   
   return query;
 }
