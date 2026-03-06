@@ -75,15 +75,8 @@ export default function ChatPage() {
   }, []);
 
   const formatProjectContextCode = useCallback((projectCode: string) => {
-    const MAX_CONTEXT_LENGTH = 60000;
-    if (projectCode.length <= MAX_CONTEXT_LENGTH) return projectCode;
-
-    const marker = '\n\n<!-- [COD TRUNCHIAT AUTOMAT PENTRU CONTEXT: secțiunea din mijloc a fost omisă din cauza dimensiunii] -->\n\n';
-    const available = MAX_CONTEXT_LENGTH - marker.length;
-    const headSize = Math.floor(available / 2);
-    const tailSize = available - headSize;
-
-    return `${projectCode.slice(0, headSize)}${marker}${projectCode.slice(-tailSize)}`;
+    // No truncation - send full project code
+    return projectCode;
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
