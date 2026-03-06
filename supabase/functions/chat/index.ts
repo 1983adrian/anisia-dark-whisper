@@ -212,9 +212,8 @@ Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid.`;
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-2.5-flash-lite",
       temperature: 0.2,
-      max_tokens: 32768,
       stream: false,
       messages: [
         { role: "system", content: repairSystemPrompt },
