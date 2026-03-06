@@ -656,25 +656,29 @@ serve(async (req) => {
 
     console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new + ${files.length} files + web:${webContext ? 'yes' : 'no'}`);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        throw new Error("LOVABLE_API_KEY is not configured");
+      }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        messages: fullMessages,
-        model: "google/gemini-2.5-pro",
-        max_tokens: 16384,
-        temperature: 0.3,
-        stream: false,
-      }),
-    });
+      // Use higher token limit for build requests to ensure complete previews
+      const isBuildRequest = looksLikeBuildRequest(userMessage) || looksLikeEditRequest(userMessage) || hasActiveProjectContext(userMessage);
+      const maxTokens = isBuildRequest ? 32768 : 16384;
+
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: fullMessages,
+          model: "google/gemini-2.5-pro",
+          max_tokens: maxTokens,
+          temperature: 0.3,
+          stream: false,
+        }),
+      });
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
