@@ -665,9 +665,7 @@ serve(async (req) => {
         throw new Error("LOVABLE_API_KEY is not configured");
       }
 
-      // Use higher token limit for build requests to ensure complete previews
-      const isBuildRequest = looksLikeBuildRequest(userMessage) || looksLikeEditRequest(userMessage) || hasActiveProjectContext(userMessage);
-      const maxTokens = isBuildRequest ? 32768 : 16384;
+      // No limits - maximum tokens always
 
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
