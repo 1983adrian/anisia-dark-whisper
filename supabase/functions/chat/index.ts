@@ -336,8 +336,12 @@ async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey:
 Obligatoriu:
 1) Max 1-2 propoziții în română.
 2) Apoi <preview> cu HTML complet standalone (<!DOCTYPE html> ...), funcțional.
-3) Fără explicații teoretice.
-4) Răspunsul final trebuie să conțină obligatoriu tag-ul <preview>.`;
+3) Fără explicații teoretice. Fără placeholder text sau "lorem ipsum".
+4) Răspunsul final trebuie să conțină obligatoriu tag-ul <preview>.
+5) MINIM 5 secțiuni: hero, features, about, testimoniale/stats, contact/footer.
+6) MINIM 5 imagini reale (picsum.photos sau unsplash).
+7) JavaScript funcțional: mobile menu, smooth scroll, animații, form validation.
+8) Design modern: gradients, shadows, rounded corners, hover effects, transitions.`;
 
   const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
 
@@ -350,7 +354,7 @@ Obligatoriu:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       temperature: 0.2,
-      max_tokens: 8192,
+      max_tokens: 16384,
       stream: false,
       messages: [
         { role: "system", content: repairSystemPrompt },
@@ -656,25 +660,29 @@ serve(async (req) => {
 
     console.log(`Processing: ${conversationHistory.length} history + ${messages.length} new + ${files.length} files + web:${webContext ? 'yes' : 'no'}`);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        throw new Error("LOVABLE_API_KEY is not configured");
+      }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        messages: fullMessages,
-        model: "google/gemini-2.5-pro",
-        max_tokens: 16384,
-        temperature: 0.3,
-        stream: false,
-      }),
-    });
+      // Use higher token limit for build requests to ensure complete previews
+      const isBuildRequest = looksLikeBuildRequest(userMessage) || looksLikeEditRequest(userMessage) || hasActiveProjectContext(userMessage);
+      const maxTokens = isBuildRequest ? 32768 : 16384;
+
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: fullMessages,
+          model: "google/gemini-2.5-pro",
+          max_tokens: maxTokens,
+          temperature: 0.3,
+          stream: false,
+        }),
+      });
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {

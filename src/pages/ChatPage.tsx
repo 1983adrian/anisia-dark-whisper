@@ -114,7 +114,9 @@ export default function ChatPage() {
       const firstImage = filesData.find(f => f.type.startsWith('image/'));
       await addMessage(conversation.id, 'user', content, firstImage?.data);
 
-      const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
+      // Send last 40 messages for better memory context
+      const recentMessages = messages.slice(-40);
+      const conversationHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
 
       // If we have an active project, inject its context
       let enhancedContent = content;
