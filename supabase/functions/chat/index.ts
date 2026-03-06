@@ -336,8 +336,12 @@ async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey:
 Obligatoriu:
 1) Max 1-2 propoziții în română.
 2) Apoi <preview> cu HTML complet standalone (<!DOCTYPE html> ...), funcțional.
-3) Fără explicații teoretice.
-4) Răspunsul final trebuie să conțină obligatoriu tag-ul <preview>.`;
+3) Fără explicații teoretice. Fără placeholder text sau "lorem ipsum".
+4) Răspunsul final trebuie să conțină obligatoriu tag-ul <preview>.
+5) MINIM 5 secțiuni: hero, features, about, testimoniale/stats, contact/footer.
+6) MINIM 5 imagini reale (picsum.photos sau unsplash).
+7) JavaScript funcțional: mobile menu, smooth scroll, animații, form validation.
+8) Design modern: gradients, shadows, rounded corners, hover effects, transitions.`;
 
   const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
 
