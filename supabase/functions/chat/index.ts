@@ -354,7 +354,7 @@ Obligatoriu:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       temperature: 0.2,
-      max_tokens: 8192,
+      max_tokens: 16384,
       stream: false,
       messages: [
         { role: "system", content: repairSystemPrompt },
