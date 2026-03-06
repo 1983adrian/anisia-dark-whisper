@@ -75,15 +75,8 @@ export default function ChatPage() {
   }, []);
 
   const formatProjectContextCode = useCallback((projectCode: string) => {
-    const MAX_CONTEXT_LENGTH = 60000;
-    if (projectCode.length <= MAX_CONTEXT_LENGTH) return projectCode;
-
-    const marker = '\n\n<!-- [COD TRUNCHIAT AUTOMAT PENTRU CONTEXT: secțiunea din mijloc a fost omisă din cauza dimensiunii] -->\n\n';
-    const available = MAX_CONTEXT_LENGTH - marker.length;
-    const headSize = Math.floor(available / 2);
-    const tailSize = available - headSize;
-
-    return `${projectCode.slice(0, headSize)}${marker}${projectCode.slice(-tailSize)}`;
+    // No truncation - send full project code
+    return projectCode;
   }, []);
 
   const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
@@ -114,9 +107,8 @@ export default function ChatPage() {
       const firstImage = filesData.find(f => f.type.startsWith('image/'));
       await addMessage(conversation.id, 'user', content, firstImage?.data);
 
-      // Send last 40 messages for better memory context
-      const recentMessages = messages.slice(-40);
-      const conversationHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
+      // Send all messages for full conversation context
+      const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
 
       // If we have an active project, inject its context
       let enhancedContent = content;

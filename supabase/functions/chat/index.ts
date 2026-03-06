@@ -354,7 +354,7 @@ Obligatoriu:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       temperature: 0.2,
-      max_tokens: 16384,
+      max_tokens: 32768,
       stream: false,
       messages: [
         { role: "system", content: repairSystemPrompt },
@@ -665,9 +665,7 @@ serve(async (req) => {
         throw new Error("LOVABLE_API_KEY is not configured");
       }
 
-      // Use higher token limit for build requests to ensure complete previews
-      const isBuildRequest = looksLikeBuildRequest(userMessage) || looksLikeEditRequest(userMessage) || hasActiveProjectContext(userMessage);
-      const maxTokens = isBuildRequest ? 32768 : 16384;
+      // No limits - maximum tokens always
 
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -678,7 +676,7 @@ serve(async (req) => {
         body: JSON.stringify({
           messages: fullMessages,
           model: "google/gemini-2.5-pro",
-          max_tokens: maxTokens,
+          max_tokens: 65536,
           temperature: 0.3,
           stream: false,
         }),
