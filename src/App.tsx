@@ -8,6 +8,7 @@ import ChatPage from "./pages/ChatPage";
 import PredictionsPage from "./pages/PredictionsPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProjectViewPage from "./pages/ProjectViewPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/predictions" element={<PredictionsPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/p/:slug" element={<ProjectViewPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

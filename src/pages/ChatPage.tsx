@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useVoice } from '@/hooks/useVoice';
 import { useProjects, Project } from '@/hooks/useProjects';
+import { useMemories } from '@/hooks/useMemories';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ export default function ChatPage() {
   } = useConversations();
   
   const { voiceEnabled, setVoiceEnabled, toggleVoice, isSpeaking, isPaused, speak, pause, resume, stop } = useVoice();
+  const { getRelevantMemories, saveMemory, formatMemoriesForContext } = useMemories();
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -110,6 +112,10 @@ export default function ChatPage() {
       // Send all messages for full conversation context
       const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
 
+      // Retrieve relevant memories
+      const memories = await getRelevantMemories(content);
+      const memoryContext = formatMemoriesForContext(memories);
+
       // If we have an active project, inject its context
       let enhancedContent = content;
       if (activeProject) {
@@ -124,7 +130,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
         },
-        body: JSON.stringify({ messages: currentMessage, conversationHistory, files: filesData })
+        body: JSON.stringify({ messages: currentMessage, conversationHistory, files: filesData, memoryContext })
       });
 
       if (!response.ok) {
@@ -149,6 +155,12 @@ export default function ChatPage() {
       if (contentType.includes('application/json')) {
         const json = await response.json();
         const assistantMessage = json.content || json.message || json.text || '';
+        
+        // Auto-save memory from learned interactions
+        if (json.memory) {
+          await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
+        }
+        
         if (assistantMessage) {
           await addMessage(conversation.id, 'assistant', assistantMessage);
           if (voiceEnabled) speak(assistantMessage);
