@@ -17,7 +17,6 @@ import { useMemories } from '@/hooks/useMemories';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
   const { user, loading: authLoading } = useAuth();
