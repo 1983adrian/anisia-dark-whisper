@@ -155,6 +155,12 @@ export default function ChatPage() {
       if (contentType.includes('application/json')) {
         const json = await response.json();
         const assistantMessage = json.content || json.message || json.text || '';
+        
+        // Auto-save memory from learned interactions
+        if (json.memory) {
+          await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
+        }
+        
         if (assistantMessage) {
           await addMessage(conversation.id, 'assistant', assistantMessage);
           if (voiceEnabled) speak(assistantMessage);
