@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_memories: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string
+          id: string
+          importance: number | null
+          last_recalled_at: string | null
+          memory_type: string
+          times_recalled: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          importance?: number | null
+          last_recalled_at?: string | null
+          memory_type?: string
+          times_recalled?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          importance?: number | null
+          last_recalled_at?: string | null
+          memory_type?: string
+          times_recalled?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
