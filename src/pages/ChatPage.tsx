@@ -112,6 +112,10 @@ export default function ChatPage() {
       // Send all messages for full conversation context
       const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
 
+      // Retrieve relevant memories
+      const memories = await getRelevantMemories(content);
+      const memoryContext = formatMemoriesForContext(memories);
+
       // If we have an active project, inject its context
       let enhancedContent = content;
       if (activeProject) {
@@ -126,7 +130,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
         },
-        body: JSON.stringify({ messages: currentMessage, conversationHistory, files: filesData })
+        body: JSON.stringify({ messages: currentMessage, conversationHistory, files: filesData, memoryContext })
       });
 
       if (!response.ok) {
