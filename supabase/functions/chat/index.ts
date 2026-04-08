@@ -610,7 +610,27 @@ ${fullHtml}
       assistantContent = hardenPreviewResponse(assistantContent);
     }
 
-    return new Response(JSON.stringify({ content: assistantContent }), {
+    // Extract memory from the conversation for learning
+    let memory = null;
+    const memoryPatterns = [
+      /prefer|vreau|îmi place|folosesc|stilul meu|limba mea|framework/i,
+      /întotdeauna|mereu|de obicei|obișnuiesc/i,
+    ];
+    const userMsg = userMessage.toLowerCase();
+    if (memoryPatterns.some(p => p.test(userMsg))) {
+      const categories: Record<string, string> = {
+        'prefer': 'preference', 'vreau': 'preference', 'îmi place': 'preference',
+        'folosesc': 'tool', 'framework': 'tech', 'limbaj': 'tech',
+        'stil': 'style', 'design': 'style',
+      };
+      let cat = 'general';
+      for (const [key, val] of Object.entries(categories)) {
+        if (userMsg.includes(key)) { cat = val; break; }
+      }
+      memory = { content: userMessage.slice(0, 500), category: cat, importance: 6 };
+    }
+
+    return new Response(JSON.stringify({ content: assistantContent, memory }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
