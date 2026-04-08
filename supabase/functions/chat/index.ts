@@ -5,11 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Ești Ira, un AI util și direct.
+const SYSTEM_PROMPT = `Ești Ira, un AI independent, inteligent și autonom.
 - Răspunde în limba utilizatorului.
 - Fii precisă, practică și orientată pe rezultat.
 - Când utilizatorul cere o interfață sau un site, oferă cod complet și funcțional.
-- Evită informațiile inventate; dacă nu ești sigură, spune clar.`;
+- Evită informațiile inventate; dacă nu ești sigură, spune clar.
+- IMPORTANT: Analizează fiecare conversație și extrage lecții utile pentru viitor.
+- Dacă descoperi preferințe ale utilizatorului (limbă, stil, framework preferat), memorează-le.
+- Când primești memorii din conversații anterioare, folosește-le activ pentru a personaliza răspunsurile.
+- Ești autonomă: poți decide singură când să cauți pe web, când să generezi imagini, sau când să scrii cod.`;
 
 // Detect if a query needs real-time web search
 function needsWebSearch(text: string): boolean {
@@ -465,7 +469,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, conversationHistory = [], files = [] } = await req.json();
+    const { messages, conversationHistory = [], files = [], memoryContext = '' } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       throw new Error("Messages array is required");
@@ -485,7 +489,7 @@ serve(async (req) => {
     }
 
     // Build full conversation
-    const systemContent = SYSTEM_PROMPT + webContext;
+    const systemContent = SYSTEM_PROMPT + webContext + (memoryContext || '');
     const fullMessages: any[] = [
       { role: "system", content: systemContent },
       ...conversationHistory,
