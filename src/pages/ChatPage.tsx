@@ -27,6 +27,7 @@ export default function ChatPage() {
   } = useConversations();
   
   const { voiceEnabled, setVoiceEnabled, toggleVoice, isSpeaking, isPaused, speak, pause, resume, stop } = useVoice();
+  const { getRelevantMemories, saveMemory, formatMemoriesForContext } = useMemories();
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
