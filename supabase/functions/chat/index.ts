@@ -8,16 +8,59 @@ const corsHeaders = {
 const SYSTEM_PROMPT = `Ești Ira, un AI independent, inteligent și autonom.
 - Răspunde în limba utilizatorului.
 - Fii precisă, practică și orientată pe rezultat.
-- CRITIC: Când construiești site-uri, pagini sau aplicații, TOTUL trebuie să fie COMPLET și REAL:
-  * NU folosi "Lorem ipsum", "placeholder", "coming soon", "sample text", "dummy" sau texte generice.
-  * Scrie CONȚINUT REAL și RELEVANT bazat pe cererea utilizatorului.
-  * TOATE butoanele trebuie să fie funcționale cu JavaScript real.
-  * TOATE secțiunile trebuie completate cu texte, numere și date realiste.
-  * Include imagini reale de pe Unsplash/Pexels prin URL-uri directe.
-  * Formulare cu validare reală, modale funcționale, tab-uri interactive, carusele animate.
-  * Minim 5-8 secțiuni complete pentru orice site cerut.
-  * CSS complet cu hover states, tranziții, responsive design.
-  * JavaScript complet pentru TOATĂ interactivitatea: meniuri mobile, scroll smooth, animații.
+
+## REGULI ABSOLUTE PENTRU CONSTRUCȚIE (site-uri, pagini, aplicații):
+
+### BUTOANE - OBLIGATORIU:
+- FIECARE buton TREBUIE să aibă un onclick cu acțiune reală JavaScript
+- Butoane de navigare: onclick="document.getElementById('sectiune').scrollIntoView({behavior:'smooth'})"
+- Butoane CTA: onclick cu modal, formular, sau acțiune concretă
+- Butoane "Contactează-ne": deschid un formular modal sau navighează la secțiunea contact
+- Butoane "Află mai mult": navighează la secțiunea relevantă
+- NU lăsa NICIODATĂ un buton fără onclick sau cu href="#"
+
+### LINKURI - OBLIGATORIU:
+- Fiecare link din meniu TREBUIE să navigheze la secțiunea corespunzătoare
+- Folosește href="#id-sectiune" cu id-uri reale pe secțiuni
+- Link-uri externe: folosește URL-uri reale (ex: https://wa.me/numar pentru WhatsApp)
+
+### CONȚINUT - OBLIGATORIU:
+- ZERO texte generice: nu "Lorem ipsum", "placeholder", "coming soon", "sample", "dummy", "Descriere aici", "Text despre..."
+- Scrie conținut REAL, specific și detaliat bazat pe cererea utilizatorului
+- Numere de telefon realiste (format românesc: 07XX XXX XXX)
+- Adrese realiste din orașul specificat sau București
+- Prețuri realiste pentru industria cerută
+- Descrieri de servicii detaliate (minim 2-3 propoziții fiecare)
+
+### FORMULARE - OBLIGATORIU:
+- Toate formularele cu validare JavaScript reală pe submit
+- Mesaj de succes afișat vizual după trimitere
+- Câmpuri cu placeholder-e descriptive relevante
+- Butonul submit cu text specific (nu generic "Submit")
+
+### INTERACTIVITATE - OBLIGATORIU:
+- Meniu mobile hamburger funcțional cu toggle JavaScript
+- Smooth scroll pe toate navigările interne
+- Hover effects pe butoane, carduri, linkuri
+- Animații la scroll (fade-in, slide-up) cu IntersectionObserver
+- Modale funcționale (deschidere/închidere) unde e nevoie
+- Galerii cu lightbox sau carousel funcțional
+- Counters animate pentru statistici
+
+### DESIGN - OBLIGATORIU:
+- Responsive: mobile-first, funcțional pe toate dispozitivele
+- Minim 6-8 secțiuni complete: hero, despre, servicii, galerie/portofoliu, testimoniale, statistici, contact, footer
+- Imagini reale de pe Unsplash cu URL-uri complete (https://images.unsplash.com/...)
+- Gradient-uri, shadows, rounded corners moderne
+- Font-uri de pe Google Fonts
+- Color scheme consistent și profesional
+
+### JAVASCRIPT - OBLIGATORIU:
+- Tot JavaScript-ul TREBUIE inclus în <script> la finalul body-ului
+- DOMContentLoaded wrapper pentru tot codul JS
+- Funcții numite pentru fiecare interacțiune
+- Console.log pentru debugging eliminat
+
 - Evită informațiile inventate pentru fapte reale; dacă nu ești sigură, spune clar.
 - Analizează fiecare conversație și extrage lecții utile pentru viitor.
 - Când primești memorii din conversații anterioare, folosește-le activ.
@@ -213,8 +256,16 @@ function hasActiveProjectContext(text: string): boolean {
 async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey: string): Promise<string | null> {
   const repairSystemPrompt = `Ești Ira în modul REPARARE OUTPUT.
 Convertește răspunsul într-un output construibil, complet și funcțional.
-OBLIGATORIU: Conținut REAL (nu placeholder/lorem ipsum), JavaScript funcțional pentru butoane/meniuri/formulare, minim 5 secțiuni complete.
-Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid complet.`;
+REGULI STRICTE:
+- FIECARE buton TREBUIE să aibă onclick cu acțiune reală (scrollIntoView, modal toggle, etc.)
+- FIECARE link din navigare TREBUIE să aibă href="#id-real" cu secțiuni existente
+- ZERO text generic: nu "Lorem ipsum", "placeholder", "coming soon", "Descriere", "Text aici"
+- Conținut REAL și specific bazat pe cererea utilizatorului
+- Formulare cu validare JavaScript și mesaj de succes
+- Meniu mobile hamburger funcțional
+- Minim 6 secțiuni complete cu conținut detaliat
+- JavaScript complet în <script> la finalul body-ului
+Răspunsul final TREBUIE să includă tag-ul <preview> cu HTML valid complet.`;
 
   const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
 
@@ -304,7 +355,36 @@ function replacePreviewHtml(text: string, html: string): string {
 }
 
 function hasPlaceholderContent(html: string): boolean {
-  return /(lorem ipsum|placeholder|coming soon|dummy text|to be updated|sample text)/i.test(html);
+  return /(lorem ipsum|placeholder|coming soon|dummy text|to be updated|sample text|descriere aici|text despre|adaugă text|your text|enter text)/i.test(html);
+}
+
+function hasEmptyButtons(html: string): boolean {
+  // Detect buttons without onclick and links with just href="#"
+  const emptyBtnPattern = /<button[^>]*>(?:(?!onclick)[^<])*<\/button>/gi;
+  const deadLinkPattern = /href=["']#["']/gi;
+  const emptyOnclick = /onclick=["']\s*["']/gi;
+  
+  const buttons = html.match(emptyBtnPattern) || [];
+  const emptyButtons = buttons.filter(btn => !btn.includes('onclick') && !btn.includes('data-bound'));
+  
+  return emptyButtons.length > 2 || deadLinkPattern.test(html) || emptyOnclick.test(html);
+}
+
+function hasIncompleteContent(html: string): boolean {
+  const incompletePatterns = [
+    />\.\.\.</,            // "..." as content
+    />…</,                // "…" as content
+    />\s*<\/(p|span|li|td|h[1-6])>/g,  // empty text elements
+    /src=["']\s*["']/g,   // empty image sources
+    /alt=["']\s*["']/g,   // empty alt text (OK for decorative, but flag it)
+  ];
+  
+  let issues = 0;
+  for (const pattern of incompletePatterns) {
+    const matches = html.match(pattern);
+    if (matches) issues += matches.length;
+  }
+  return issues > 3;
 }
 
 function injectInteractivityBridge(html: string): string {
@@ -606,11 +686,25 @@ ${fullHtml}
 
     if (shouldEnforcePreview && hasPreviewTag(assistantContent)) {
       const previewHtml = extractPreviewHtml(assistantContent);
+      
+      const needsRepair = previewHtml && (
+        hasPlaceholderContent(previewHtml) || 
+        hasEmptyButtons(previewHtml) || 
+        hasIncompleteContent(previewHtml)
+      );
 
-      if (previewHtml && hasPlaceholderContent(previewHtml)) {
-        const practicalRepairPrompt = `${assistantContent}\n\nREPARĂ ACUM preview-ul: elimină placeholder-ele și fă toate butoanele/linkurile/formurile funcționale.`;
-        const repaired = await forcePreviewFromDraft(userMessage, practicalRepairPrompt, LOVABLE_API_KEY);
+      if (needsRepair) {
+        console.log("Quality check failed - repairing preview (placeholder/empty buttons/incomplete)");
+        const repairInstructions = `${assistantContent}
 
+REPARARE OBLIGATORIE - Probleme detectate:
+${hasPlaceholderContent(previewHtml!) ? '- Conținut placeholder detectat - înlocuiește cu text REAL și specific' : ''}
+${hasEmptyButtons(previewHtml!) ? '- Butoane fără funcționalitate - adaugă onclick cu acțiuni reale (scrollIntoView, modal, etc.)' : ''}
+${hasIncompleteContent(previewHtml!) ? '- Secțiuni incomplete/goale - completează cu conținut real detaliat' : ''}
+
+REZOLVĂ TOATE problemele. Fiecare buton trebuie să aibă onclick funcțional. Fiecare link trebuie să navigheze undeva real. Zero text generic.`;
+        
+        const repaired = await forcePreviewFromDraft(userMessage, repairInstructions, LOVABLE_API_KEY);
         if (repaired && hasPreviewTag(repaired)) {
           assistantContent = repaired;
         }
