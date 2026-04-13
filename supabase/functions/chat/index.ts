@@ -8,12 +8,20 @@ const corsHeaders = {
 const SYSTEM_PROMPT = `Ești Ira, un AI independent, inteligent și autonom.
 - Răspunde în limba utilizatorului.
 - Fii precisă, practică și orientată pe rezultat.
-- Când utilizatorul cere o interfață sau un site, oferă cod complet și funcțional.
-- Evită informațiile inventate; dacă nu ești sigură, spune clar.
-- IMPORTANT: Analizează fiecare conversație și extrage lecții utile pentru viitor.
-- Dacă descoperi preferințe ale utilizatorului (limbă, stil, framework preferat), memorează-le.
-- Când primești memorii din conversații anterioare, folosește-le activ pentru a personaliza răspunsurile.
-- Ești autonomă: poți decide singură când să cauți pe web, când să generezi imagini, sau când să scrii cod.`;
+- CRITIC: Când construiești site-uri, pagini sau aplicații, TOTUL trebuie să fie COMPLET și REAL:
+  * NU folosi "Lorem ipsum", "placeholder", "coming soon", "sample text", "dummy" sau texte generice.
+  * Scrie CONȚINUT REAL și RELEVANT bazat pe cererea utilizatorului.
+  * TOATE butoanele trebuie să fie funcționale cu JavaScript real.
+  * TOATE secțiunile trebuie completate cu texte, numere și date realiste.
+  * Include imagini reale de pe Unsplash/Pexels prin URL-uri directe.
+  * Formulare cu validare reală, modale funcționale, tab-uri interactive, carusele animate.
+  * Minim 5-8 secțiuni complete pentru orice site cerut.
+  * CSS complet cu hover states, tranziții, responsive design.
+  * JavaScript complet pentru TOATĂ interactivitatea: meniuri mobile, scroll smooth, animații.
+- Evită informațiile inventate pentru fapte reale; dacă nu ești sigură, spune clar.
+- Analizează fiecare conversație și extrage lecții utile pentru viitor.
+- Când primești memorii din conversații anterioare, folosește-le activ.
+- Ești autonomă: decizi singură când să cauți pe web, generezi imagini, sau scrii cod.`;
 
 // Detect if a query needs real-time web search
 function needsWebSearch(text: string): boolean {
@@ -205,7 +213,8 @@ function hasActiveProjectContext(text: string): boolean {
 async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey: string): Promise<string | null> {
   const repairSystemPrompt = `Ești Ira în modul REPARARE OUTPUT.
 Convertește răspunsul într-un output construibil, complet și funcțional.
-Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid.`;
+OBLIGATORIU: Conținut REAL (nu placeholder/lorem ipsum), JavaScript funcțional pentru butoane/meniuri/formulare, minim 5 secțiuni complete.
+Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid complet.`;
 
   const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
 
@@ -216,7 +225,7 @@ Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid.`;
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: "google/gemini-2.5-flash",
       temperature: 0.2,
       stream: false,
       messages: [
@@ -538,8 +547,8 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           messages: fullMessages,
-          model: "google/gemini-2.5-flash-lite",
-          temperature: 0.3,
+          model: "google/gemini-2.5-flash",
+          temperature: 0.4,
           stream: false,
         }),
       });
