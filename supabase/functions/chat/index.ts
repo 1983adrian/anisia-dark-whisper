@@ -347,7 +347,36 @@ function replacePreviewHtml(text: string, html: string): string {
 }
 
 function hasPlaceholderContent(html: string): boolean {
-  return /(lorem ipsum|placeholder|coming soon|dummy text|to be updated|sample text)/i.test(html);
+  return /(lorem ipsum|placeholder|coming soon|dummy text|to be updated|sample text|descriere aici|text despre|adaugă text|your text|enter text)/i.test(html);
+}
+
+function hasEmptyButtons(html: string): boolean {
+  // Detect buttons without onclick and links with just href="#"
+  const emptyBtnPattern = /<button[^>]*>(?:(?!onclick)[^<])*<\/button>/gi;
+  const deadLinkPattern = /href=["']#["']/gi;
+  const emptyOnclick = /onclick=["']\s*["']/gi;
+  
+  const buttons = html.match(emptyBtnPattern) || [];
+  const emptyButtons = buttons.filter(btn => !btn.includes('onclick') && !btn.includes('data-bound'));
+  
+  return emptyButtons.length > 2 || deadLinkPattern.test(html) || emptyOnclick.test(html);
+}
+
+function hasIncompleteContent(html: string): boolean {
+  const incompletePatterns = [
+    />\.\.\.</,            // "..." as content
+    />…</,                // "…" as content
+    />\s*<\/(p|span|li|td|h[1-6])>/g,  // empty text elements
+    /src=["']\s*["']/g,   // empty image sources
+    /alt=["']\s*["']/g,   // empty alt text (OK for decorative, but flag it)
+  ];
+  
+  let issues = 0;
+  for (const pattern of incompletePatterns) {
+    const matches = html.match(pattern);
+    if (matches) issues += matches.length;
+  }
+  return issues > 3;
 }
 
 function injectInteractivityBridge(html: string): string {
