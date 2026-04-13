@@ -256,8 +256,16 @@ function hasActiveProjectContext(text: string): boolean {
 async function forcePreviewFromDraft(userMessage: string, draft: string, apiKey: string): Promise<string | null> {
   const repairSystemPrompt = `Ești Ira în modul REPARARE OUTPUT.
 Convertește răspunsul într-un output construibil, complet și funcțional.
-OBLIGATORIU: Conținut REAL (nu placeholder/lorem ipsum), JavaScript funcțional pentru butoane/meniuri/formulare, minim 5 secțiuni complete.
-Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid complet.`;
+REGULI STRICTE:
+- FIECARE buton TREBUIE să aibă onclick cu acțiune reală (scrollIntoView, modal toggle, etc.)
+- FIECARE link din navigare TREBUIE să aibă href="#id-real" cu secțiuni existente
+- ZERO text generic: nu "Lorem ipsum", "placeholder", "coming soon", "Descriere", "Text aici"
+- Conținut REAL și specific bazat pe cererea utilizatorului
+- Formulare cu validare JavaScript și mesaj de succes
+- Meniu mobile hamburger funcțional
+- Minim 6 secțiuni complete cu conținut detaliat
+- JavaScript complet în <script> la finalul body-ului
+Răspunsul final TREBUIE să includă tag-ul <preview> cu HTML valid complet.`;
 
   const repairUserPrompt = `CERERE UTILIZATOR:\n${userMessage}\n\nRĂSPUNS INIȚIAL (de reparat):\n${draft}`;
 
