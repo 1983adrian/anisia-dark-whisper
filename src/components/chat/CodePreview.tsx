@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink, Save, Pencil, Globe, Link2, Check } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, Code2, ExternalLink, Save, Pencil, Globe, Link2, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useProjects, Project } from '@/hooks/useProjects';
@@ -125,6 +125,23 @@ ${html}
     }
   }, [savedProject, code, onEditRequest]);
 
+  const handleDownload = useCallback(() => {
+    const downloadBlob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(downloadBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    const fileName = (savedProject?.title || title || 'proiect')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-|-$/g, '') + '.html';
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Fișier descărcat: ' + fileName);
+  }, [htmlDoc, savedProject, title]);
+
   return (
     <div
       ref={containerRef}
@@ -190,6 +207,12 @@ ${html}
               <Pencil className="h-3.5 w-3.5" />
             </Button>
           )}
+
+          {/* Download */}
+          <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={handleDownload} title="Descarcă pe dispozitiv">
+            <Download className="h-3.5 w-3.5" />
+            Descarcă
+          </Button>
 
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowCode(!showCode)} title={showCode ? 'Ascunde codul' : 'Vezi codul'}>
             <Code2 className="h-3.5 w-3.5" />
