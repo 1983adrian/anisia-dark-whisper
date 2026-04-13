@@ -225,7 +225,7 @@ Răspunsul final trebuie să includă tag-ul <preview> cu HTML valid complet.`;
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: "google/gemini-2.5-flash",
       temperature: 0.2,
       stream: false,
       messages: [
