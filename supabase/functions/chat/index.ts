@@ -678,11 +678,25 @@ ${fullHtml}
 
     if (shouldEnforcePreview && hasPreviewTag(assistantContent)) {
       const previewHtml = extractPreviewHtml(assistantContent);
+      
+      const needsRepair = previewHtml && (
+        hasPlaceholderContent(previewHtml) || 
+        hasEmptyButtons(previewHtml) || 
+        hasIncompleteContent(previewHtml)
+      );
 
-      if (previewHtml && hasPlaceholderContent(previewHtml)) {
-        const practicalRepairPrompt = `${assistantContent}\n\nREPARĂ ACUM preview-ul: elimină placeholder-ele și fă toate butoanele/linkurile/formurile funcționale.`;
-        const repaired = await forcePreviewFromDraft(userMessage, practicalRepairPrompt, LOVABLE_API_KEY);
+      if (needsRepair) {
+        console.log("Quality check failed - repairing preview (placeholder/empty buttons/incomplete)");
+        const repairInstructions = `${assistantContent}
 
+REPARARE OBLIGATORIE - Probleme detectate:
+${hasPlaceholderContent(previewHtml!) ? '- Conținut placeholder detectat - înlocuiește cu text REAL și specific' : ''}
+${hasEmptyButtons(previewHtml!) ? '- Butoane fără funcționalitate - adaugă onclick cu acțiuni reale (scrollIntoView, modal, etc.)' : ''}
+${hasIncompleteContent(previewHtml!) ? '- Secțiuni incomplete/goale - completează cu conținut real detaliat' : ''}
+
+REZOLVĂ TOATE problemele. Fiecare buton trebuie să aibă onclick funcțional. Fiecare link trebuie să navigheze undeva real. Zero text generic.`;
+        
+        const repaired = await forcePreviewFromDraft(userMessage, repairInstructions, LOVABLE_API_KEY);
         if (repaired && hasPreviewTag(repaired)) {
           assistantContent = repaired;
         }
