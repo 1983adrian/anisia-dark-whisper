@@ -284,6 +284,7 @@ export default function ChatPage() {
                   key={msg.id}
                   role={msg.role}
                   content={msg.content}
+                  imageUrl={msg.image_url}
                   enableTypewriter={false}
                   onSpeak={() => speak(msg.content)}
                   isSpeaking={isSpeaking}
