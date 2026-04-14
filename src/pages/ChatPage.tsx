@@ -34,7 +34,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Load project from URL params (?edit=projectId)
@@ -62,9 +62,7 @@ export default function ChatPage() {
   }, [searchParams, user]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, streamingContent]);
 
   const handleProjectSaved = useCallback((project: Project) => {

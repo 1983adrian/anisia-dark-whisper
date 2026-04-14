@@ -229,16 +229,10 @@ function looksLikeImageRequest(text: string): boolean {
   const imageTriggers = [
     "generează o imagine", "genereaza o imagine", "generează o poză", "genereaza o poza",
     "generează imagine", "genereaza imagine", "generează poză", "genereaza poza",
-    "fă o imagine", "fa o imagine", "fă o poză", "fa o poza",
-    "fă-mi o imagine", "fa-mi o imagine", "fă-mi o poză", "fa-mi o poza",
     "creează o imagine", "creaza o imagine", "creează o poză", "creaza o poza",
     "desenează", "deseneaza", "draw", "generate image", "generate picture",
-    "imagine cu", "poză cu", "poza cu", "photo of", "picture of",
     "create an image", "make an image", "make a picture", "make a photo",
-    "arată-mi cum arată", "arata-mi cum arata",
-    "logo", "banner", "ilustrație", "ilustratie", "wallpaper", "avatar",
-    "generează un logo", "genereaza un logo", "fă un logo", "fa un logo",
-    "imagine de", "poză de", "poza de",
+    "logo", "banner", "wallpaper", "avatar"
   ];
   return imageTriggers.some((trigger) => t.includes(trigger));
 }
@@ -246,25 +240,29 @@ function looksLikeImageRequest(text: string): boolean {
 function looksLikeImageEditRequest(text: string): boolean {
   const t = text.toLowerCase();
   const editTriggers = [
-    "modifică", "modifica", "schimbă", "schimba", "editează", "editeaza",
-    "fă", "fa", "pune", "adaugă", "adauga", "scoate", "elimina", "elimină",
-    "transformă", "transforma", "convertește", "converteste",
-    "fă-o", "fa-o", "fă-l", "fa-l", "fă-i", "fa-i",
-    "schimbă culoarea", "schimba culoarea", "schimbă fundalul", "schimba fundalul",
-    "adaugă text", "adauga text", "pune text", "scrie pe",
-    "fă mai", "fa mai", "mai luminos", "mai întunecat", "mai intunecat",
-    "rotește", "roteste", "decupează", "decupeaza", "crop",
-    "blur", "sharpen", "resize", "remove background", "scoate fundalul",
-    "stil", "style", "filter", "filtru",
-    "face swap", "înlocuiește", "inlocuieste",
-    "improve", "enhance", "îmbunătățește", "imbunatateste",
-    "make it", "change", "edit", "modify", "add", "remove",
-    "colorează", "coloreaza", "recolorează", "recoloreaza",
-    "mărește", "mareste", "micșorează", "micsoreza",
-    "clonează", "cloneaza", "copiază", "copiaza",
-    "exact", "identic", "la fel", "cum vreau",
+    "editează poza", "editeaza poza", "editează imaginea", "editeaza imaginea",
+    "modifică poza", "modifica poza", "modifică imaginea", "modifica imaginea",
+    "schimbă fundalul", "schimba fundalul", "schimbă culoarea", "schimba culoarea",
+    "adaugă text pe", "adauga text pe", "pune text pe", "scrie pe poză", "scrie pe poza",
+    "scoate fundalul", "remove background", "decupează", "decupeaza",
+    "rotește", "roteste", "decolorează", "decoloreaza", "colorează", "coloreaza",
+    "îmbunătățește poza", "imbunatateste poza", "îmbunătățește imaginea", "imbunatateste imaginea",
+    "clonează 1 la 1", "cloneaza 1 la 1", "fă fundalul", "fa fundalul",
+    "fă cerul", "fa cerul", "adaugă în imagine", "adauga in imagine",
+    "elimină din imagine", "elimina din imagine", "face swap"
   ];
   return editTriggers.some((trigger) => t.includes(trigger));
+}
+
+function buildImageEditPrompt(userMessage: string): string {
+  return [
+    "Editează imaginea atașată respectând STRICT instrucțiunea utilizatorului.",
+    "Păstrează identitatea, compoziția, perspectiva, proporțiile, claritatea și toate zonele necerute neschimbate.",
+    "Modifică DOAR ce este cerut explicit. Nu redesena imaginea complet și nu inventa elemente noi.",
+    "Dacă utilizatorul cere text, folosește EXACT textul cerut, lizibil și fără erori.",
+    "Returnează o imagine editată finală, nu explicații.",
+    `Instrucțiune utilizator: ${userMessage}`,
+  ].join("\n");
 }
 
 function looksLikeBuildRequest(text: string): boolean {
