@@ -243,6 +243,30 @@ function looksLikeImageRequest(text: string): boolean {
   return imageTriggers.some((trigger) => t.includes(trigger));
 }
 
+function looksLikeImageEditRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  const editTriggers = [
+    "modifică", "modifica", "schimbă", "schimba", "editează", "editeaza",
+    "fă", "fa", "pune", "adaugă", "adauga", "scoate", "elimina", "elimină",
+    "transformă", "transforma", "convertește", "converteste",
+    "fă-o", "fa-o", "fă-l", "fa-l", "fă-i", "fa-i",
+    "schimbă culoarea", "schimba culoarea", "schimbă fundalul", "schimba fundalul",
+    "adaugă text", "adauga text", "pune text", "scrie pe",
+    "fă mai", "fa mai", "mai luminos", "mai întunecat", "mai intunecat",
+    "rotește", "roteste", "decupează", "decupeaza", "crop",
+    "blur", "sharpen", "resize", "remove background", "scoate fundalul",
+    "stil", "style", "filter", "filtru",
+    "face swap", "înlocuiește", "inlocuieste",
+    "improve", "enhance", "îmbunătățește", "imbunatateste",
+    "make it", "change", "edit", "modify", "add", "remove",
+    "colorează", "coloreaza", "recolorează", "recoloreaza",
+    "mărește", "mareste", "micșorează", "micsoreza",
+    "clonează", "cloneaza", "copiază", "copiaza",
+    "exact", "identic", "la fel", "cum vreau",
+  ];
+  return editTriggers.some((trigger) => t.includes(trigger));
+}
+
 function looksLikeBuildRequest(text: string): boolean {
   const t = text.toLowerCase();
   const buildTriggers = [
@@ -636,10 +660,41 @@ serve(async (req) => {
         throw new Error("LOVABLE_API_KEY is not configured");
       }
 
-      // Check if user wants an image generated
-      if (looksLikeImageRequest(userMessage)) {
-        console.log("Image generation detected, calling image model...");
+      // Detect uploaded image for editing
+      const uploadedImage = files.find((f: any) => f.type?.startsWith('image/'));
+      const hasImage = !!uploadedImage;
+      const isImageEdit = hasImage && (looksLikeImageEditRequest(userMessage) || userMessage.trim().length > 0);
+      const isImageGen = looksLikeImageRequest(userMessage);
+
+      if (isImageEdit || isImageGen) {
+        console.log(isImageEdit ? "Image EDIT detected" : "Image GENERATION detected");
         
+        // Build message content for the image model
+        const imageModelMessages: any[] = [];
+        
+        if (isImageEdit && uploadedImage) {
+          // Image editing: send instruction + uploaded image
+          imageModelMessages.push({
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: `INSTRUCȚIUNE EXACTĂ DE EDITARE (execută PRECIS ce se cere, fără interpretare liberă, fără a strica calitatea imaginii originale):\n\n${userMessage}` 
+              },
+              { 
+                type: "image_url", 
+                image_url: { url: uploadedImage.data } 
+              }
+            ]
+          });
+        } else {
+          // Image generation from text
+          imageModelMessages.push({ 
+            role: "user", 
+            content: userMessage 
+          });
+        }
+
         const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -648,7 +703,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-flash-image",
-            messages: [{ role: "user", content: userMessage }],
+            messages: imageModelMessages,
             modalities: ["image", "text"],
           }),
         });
@@ -664,12 +719,13 @@ serve(async (req) => {
               status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-          console.error("Image generation failed:", imageResponse.status);
+          console.error("Image model failed:", imageResponse.status);
           // Fall through to regular text response
         } else {
           const imageData = await imageResponse.json();
           const generatedImageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-          const imageText = imageData.choices?.[0]?.message?.content || "Iată imaginea generată!";
+          const imageText = imageData.choices?.[0]?.message?.content || 
+            (isImageEdit ? "Gata! Am modificat imaginea exact cum ai cerut." : "Iată imaginea generată!");
 
           if (generatedImageUrl) {
             return new Response(JSON.stringify({ 
@@ -680,7 +736,6 @@ serve(async (req) => {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-          // If no image returned, fall through to regular response
           console.log("No image in response, falling back to text");
         }
       }
