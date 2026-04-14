@@ -636,7 +636,54 @@ serve(async (req) => {
         throw new Error("LOVABLE_API_KEY is not configured");
       }
 
-      // No limits - maximum tokens always
+      // Check if user wants an image generated
+      if (looksLikeImageRequest(userMessage)) {
+        console.log("Image generation detected, calling image model...");
+        
+        const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-image",
+            messages: [{ role: "user", content: userMessage }],
+            modalities: ["image", "text"],
+          }),
+        });
+
+        if (!imageResponse.ok) {
+          if (imageResponse.status === 429) {
+            return new Response(JSON.stringify({ error: "Prea multe cereri. Așteaptă puțin." }), {
+              status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (imageResponse.status === 402) {
+            return new Response(JSON.stringify({ error: "Limită de utilizare atinsă." }), {
+              status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          console.error("Image generation failed:", imageResponse.status);
+          // Fall through to regular text response
+        } else {
+          const imageData = await imageResponse.json();
+          const generatedImageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+          const imageText = imageData.choices?.[0]?.message?.content || "Iată imaginea generată!";
+
+          if (generatedImageUrl) {
+            return new Response(JSON.stringify({ 
+              content: imageText, 
+              imageUrl: generatedImageUrl,
+              memory: null 
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          // If no image returned, fall through to regular response
+          console.log("No image in response, falling back to text");
+        }
+      }
 
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
