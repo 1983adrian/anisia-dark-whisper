@@ -224,6 +224,25 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#039;");
 }
 
+function looksLikeImageRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  const imageTriggers = [
+    "generează o imagine", "genereaza o imagine", "generează o poză", "genereaza o poza",
+    "generează imagine", "genereaza imagine", "generează poză", "genereaza poza",
+    "fă o imagine", "fa o imagine", "fă o poză", "fa o poza",
+    "fă-mi o imagine", "fa-mi o imagine", "fă-mi o poză", "fa-mi o poza",
+    "creează o imagine", "creaza o imagine", "creează o poză", "creaza o poza",
+    "desenează", "deseneaza", "draw", "generate image", "generate picture",
+    "imagine cu", "poză cu", "poza cu", "photo of", "picture of",
+    "create an image", "make an image", "make a picture", "make a photo",
+    "arată-mi cum arată", "arata-mi cum arata",
+    "logo", "banner", "ilustrație", "ilustratie", "wallpaper", "avatar",
+    "generează un logo", "genereaza un logo", "fă un logo", "fa un logo",
+    "imagine de", "poză de", "poza de",
+  ];
+  return imageTriggers.some((trigger) => t.includes(trigger));
+}
+
 function looksLikeBuildRequest(text: string): boolean {
   const t = text.toLowerCase();
   const buildTriggers = [
