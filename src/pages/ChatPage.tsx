@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useVoice } from '@/hooks/useVoice';
-import { useProjects, Project } from '@/hooks/useProjects';
+import { Project } from '@/hooks/useProjects';
 import { useMemories } from '@/hooks/useMemories';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -37,7 +37,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Load project from URL params (?edit=projectId)
   useEffect(() => {
     const editId = searchParams.get('edit');
     if (editId && user) {
@@ -52,14 +51,12 @@ export default function ChatPage() {
         if (data) {
           const project = data as unknown as Project;
           setActiveProject(project);
-          // Clear the param
           setSearchParams({}, { replace: true });
-          // Auto-send edit context message
           toast.info(`Proiect încărcat: "${project.title}" — spune-i Irei ce vrei să schimbi!`);
         }
       })();
     }
-  }, [searchParams, user]);
+  }, [searchParams, user, setSearchParams]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -75,7 +72,6 @@ export default function ChatPage() {
   }, []);
 
   const formatProjectContextCode = useCallback((projectCode: string) => {
-    // No truncation - send full project code
     return projectCode;
   }, []);
 
@@ -107,14 +103,10 @@ export default function ChatPage() {
       const firstImage = filesData.find(f => f.type.startsWith('image/'));
       await addMessage(conversation.id, 'user', content, firstImage?.data);
 
-      // Send all messages for full conversation context
       const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
-
-      // Retrieve relevant memories
       const memories = await getRelevantMemories(content);
       const memoryContext = formatMemoriesForContext(memories);
 
-      // If we have an active project, inject its context
       let enhancedContent = content;
       if (activeProject) {
         enhancedContent = `[CONTEXT PROIECT ACTIV: "${activeProject.title}" (ID: ${activeProject.id}, v${activeProject.version})]\n[CODUL ACTUAL AL PROIECTULUI:]\n\`\`\`html\n${formatProjectContextCode(activeProject.code)}\n\`\`\`\n\n[CEREREA UTILIZATORULUI:] ${content}`;
@@ -155,7 +147,6 @@ export default function ChatPage() {
         const assistantMessage = json.content || json.message || json.text || '';
         const imageUrl = json.imageUrl || null;
         
-        // Auto-save memory from learned interactions
         if (json.memory) {
           await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
         }
@@ -200,7 +191,9 @@ export default function ChatPage() {
                 assistantMessage += deltaContent;
                 setStreamingContent(assistantMessage);
               }
-            } catch { /* skip */ }
+            } catch {
+              continue;
+            }
           }
         }
       }
@@ -217,7 +210,20 @@ export default function ChatPage() {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [user, currentConversation, createConversation, addMessage, messages, voiceEnabled, speak, activeProject, formatProjectContextCode]);
+  }, [
+    user,
+    currentConversation,
+    createConversation,
+    addMessage,
+    messages,
+    voiceEnabled,
+    speak,
+    activeProject,
+    formatProjectContextCode,
+    getRelevantMemories,
+    saveMemory,
+    formatMemoriesForContext,
+  ]);
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Se încarcă...</div>;
   if (!user) return <AuthPage />;
@@ -257,7 +263,6 @@ export default function ChatPage() {
           onStop={stop} 
         />
 
-        {/* Active project banner */}
         {activeProject && (
           <div className="px-4 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
             <span className="text-sm text-primary font-medium">
@@ -275,7 +280,7 @@ export default function ChatPage() {
         {!currentConversation && messages.length === 0 ? (
           <WelcomeScreen onStartChat={(p) => p ? handleSendMessage(p) : createConversation()} />
         ) : (
-          <ScrollArea className="flex-1" ref={scrollRef}>
+          <ScrollArea className="flex-1">
             <div className="max-w-3xl mx-auto px-4 py-4">
               {messages.map((msg) => (
                 <ChatMessage
@@ -303,6 +308,7 @@ export default function ChatPage() {
                   onEditProject={handleEditProject}
                 />
               )}
+              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
         )}
