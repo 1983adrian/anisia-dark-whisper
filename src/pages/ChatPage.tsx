@@ -155,15 +155,16 @@ export default function ChatPage() {
       if (contentType.includes('application/json')) {
         const json = await response.json();
         const assistantMessage = json.content || json.message || json.text || '';
+        const imageUrl = json.imageUrl || null;
         
         // Auto-save memory from learned interactions
         if (json.memory) {
           await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
         }
         
-        if (assistantMessage) {
-          await addMessage(conversation.id, 'assistant', assistantMessage);
-          if (voiceEnabled) speak(assistantMessage);
+        if (assistantMessage || imageUrl) {
+          await addMessage(conversation.id, 'assistant', assistantMessage || 'Iată imaginea generată:', imageUrl);
+          if (voiceEnabled && assistantMessage) speak(assistantMessage);
         } else {
           throw new Error('Nu am primit un răspuns valid de la AI');
         }
