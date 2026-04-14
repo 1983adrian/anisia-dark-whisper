@@ -243,6 +243,30 @@ function looksLikeImageRequest(text: string): boolean {
   return imageTriggers.some((trigger) => t.includes(trigger));
 }
 
+function looksLikeImageEditRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  const editTriggers = [
+    "modifică", "modifica", "schimbă", "schimba", "editează", "editeaza",
+    "fă", "fa", "pune", "adaugă", "adauga", "scoate", "elimina", "elimină",
+    "transformă", "transforma", "convertește", "converteste",
+    "fă-o", "fa-o", "fă-l", "fa-l", "fă-i", "fa-i",
+    "schimbă culoarea", "schimba culoarea", "schimbă fundalul", "schimba fundalul",
+    "adaugă text", "adauga text", "pune text", "scrie pe",
+    "fă mai", "fa mai", "mai luminos", "mai întunecat", "mai intunecat",
+    "rotește", "roteste", "decupează", "decupeaza", "crop",
+    "blur", "sharpen", "resize", "remove background", "scoate fundalul",
+    "stil", "style", "filter", "filtru",
+    "face swap", "înlocuiește", "inlocuieste",
+    "improve", "enhance", "îmbunătățește", "imbunatateste",
+    "make it", "change", "edit", "modify", "add", "remove",
+    "colorează", "coloreaza", "recolorează", "recoloreaza",
+    "mărește", "mareste", "micșorează", "micsoreza",
+    "clonează", "cloneaza", "copiază", "copiaza",
+    "exact", "identic", "la fel", "cum vreau",
+  ];
+  return editTriggers.some((trigger) => t.includes(trigger));
+}
+
 function looksLikeBuildRequest(text: string): boolean {
   const t = text.toLowerCase();
   const buildTriggers = [
