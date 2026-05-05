@@ -121,25 +121,7 @@ export const ChatMessage = memo(function ChatMessage({
     link.click();
   };
 
-  const handleContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const copyBtn = target.closest('.copy-code-btn') as HTMLElement | null;
-    if (copyBtn) {
-      e.preventDefault();
-      const encodedCode = copyBtn.getAttribute('data-code');
-      if (encodedCode) {
-        const code = decodeURIComponent(encodedCode);
-        navigator.clipboard.writeText(code).then(() => {
-          copyBtn.classList.add('copied');
-          copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-          setTimeout(() => {
-            copyBtn.classList.remove('copied');
-            copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-          }, 2000);
-        });
-      }
-    }
-  }, []);
+  // copy handled inline by MarkdownBlock now
 
   return (
     <div className="py-6 group overflow-hidden">
@@ -167,7 +149,7 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
 
-            <div className="text-foreground break-words overflow-hidden" onClick={handleContentClick}>
+            <div className="text-foreground break-words overflow-hidden">
               {parsedContent.map((part, index) => (
                 <div key={index} className="overflow-hidden">
                   {part.type === 'game' ? (
@@ -182,12 +164,13 @@ export const ChatMessage = memo(function ChatMessage({
                   ) : (
                     <div
                       className={cn(
-                        "markdown-content leading-7 break-words overflow-wrap-anywhere",
+                        "leading-7 break-words",
                         showTypingCursor && index === parsedContent.length - 1 && "typing-cursor"
                       )}
                       style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(part.content) }}
-                    />
+                    >
+                      <MarkdownBlock text={part.content} />
+                    </div>
                   )}
                 </div>
               ))}
