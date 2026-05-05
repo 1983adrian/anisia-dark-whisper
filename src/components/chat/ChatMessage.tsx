@@ -1,5 +1,7 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Volume2, Copy, Check, Download } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import anisiaAvatar from '@/assets/anisia-avatar.png';
@@ -46,43 +48,48 @@ function parseContent(content: string): { type: 'text' | 'game' | 'preview'; con
   return parts;
 }
 
-function escapeHtml(text: string) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
-
-function renderMarkdown(content: string) {
-  let codeBlockIndex = 0;
-  
-  let html = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
-    const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
-    const idx = codeBlockIndex++;
-    const trimmedCode = code.trim();
-    return `<div class="code-block-wrapper group/code" data-code-index="${idx}">
-      <div class="code-header">
-        ${langLabel}
-        <button class="copy-code-btn" data-code="${encodeURIComponent(trimmedCode)}" title="Copiază codul">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-        </button>
-      </div>
-      <pre class="code-block"><code>${escapeHtml(trimmedCode)}</code></pre>
-    </div>`;
-  });
-
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-4 mb-2 text-foreground">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-5 mb-2 text-foreground">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-6 mb-3 text-foreground">$1</h1>');
-  html = html.replace(/^\- (.+)$/gm, '<li class="list-item">$1</li>');
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="list-item-numbered">$1</li>');
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="border-l-3 border-primary pl-4 my-2 text-muted-foreground italic">$1</blockquote>');
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline font-medium" target="_blank" rel="noopener">$1</a>');
-  html = html.replace(/^---$/gm, '<hr class="my-4 border-border" />');
-  html = html.replace(/\n\n/g, '</p><p class="mb-3">');
-  html = html.replace(/\n/g, '<br/>');
-
-  return `<div class="prose-content"><p class="mb-3">${html}</p></div>`;
+function MarkdownBlock({ text }: { text: string }) {
+  return (
+    <div className="markdown-content prose prose-sm dark:prose-invert max-w-none break-words">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ className, children, ...props }: any) {
+            const match = /language-(\w+)/.exec(className || '');
+            const isInline = !match;
+            const codeText = String(children).replace(/\n$/, '');
+            if (isInline) {
+              return <code className="inline-code" {...props}>{children}</code>;
+            }
+            return (
+              <div className="code-block-wrapper group/code">
+                <div className="code-header">
+                  {match && <span className="code-lang">{match[1]}</span>}
+                  <button
+                    className="copy-code-btn"
+                    onClick={() => navigator.clipboard.writeText(codeText)}
+                    title="Copiază codul"
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <pre className="code-block"><code>{codeText}</code></pre>
+              </div>
+            );
+          },
+          a({ children, href }) {
+            return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{children}</a>;
+          },
+          table({ children }) {
+            return <div className="overflow-x-auto"><table className="border-collapse">{children}</table></div>;
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 export const ChatMessage = memo(function ChatMessage({
