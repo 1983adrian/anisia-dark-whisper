@@ -86,13 +86,13 @@ export default function ChatPage() {
 
     setIsStreaming(true);
     setStreamingContent('');
-    
+
     try {
       const filesData: { type: string; data: string; name: string }[] = [];
       if (files && files.length > 0) {
         for (const file of files) {
-          const reader = new FileReader();
           const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
             reader.readAsDataURL(file);
           });
@@ -125,83 +125,35 @@ export default function ChatPage() {
 
       if (!response.ok) {
         if (response.status === 429) {
-          const voiceMessage = 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.';
-          await addMessage(conversation.id, 'assistant', voiceMessage);
-          if (voiceEnabled) speak(voiceMessage);
+          const msg = 'Sunt prea multe cereri acum. Încearcă din nou peste câteva minute.';
+          await addMessage(conversation.id, 'assistant', msg);
+          if (voiceEnabled) speak(msg);
           return;
         }
         if (response.status === 402) {
-          const voiceMessage = 'Momentan s-a atins limita de utilizare. Încearcă din nou mai târziu.';
-          await addMessage(conversation.id, 'assistant', voiceMessage);
-          if (voiceEnabled) speak(voiceMessage);
+          const msg = 'Momentan s-a atins limita de utilizare. Încearcă din nou mai târziu.';
+          await addMessage(conversation.id, 'assistant', msg);
+          if (voiceEnabled) speak(msg);
           return;
         }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Eroare la comunicarea cu AI');
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      
-      if (contentType.includes('application/json')) {
-        const json = await response.json();
-        const assistantMessage = json.content || json.message || json.text || '';
-        const imageUrl = json.imageUrl || null;
-        
-        if (json.memory) {
-          await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
-        }
-        
-        if (assistantMessage || imageUrl) {
-          await addMessage(conversation.id, 'assistant', assistantMessage || 'Iată imaginea generată:', imageUrl);
-          if (voiceEnabled && assistantMessage) speak(assistantMessage);
-        } else {
-          throw new Error('Nu am primit un răspuns valid de la AI');
-        }
-        return;
+      // Backend always returns JSON — no dead SSE branch anymore
+      const json = await response.json();
+      const assistantMessage: string = json.content || json.message || json.text || '';
+      const imageUrl: string | null = json.imageUrl || null;
+
+      if (json.memory) {
+        await saveMemory(json.memory.content, json.memory.category, json.memory.importance);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
-      let buffer = '';
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          
-          let newlineIndex: number;
-          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-            let line = buffer.slice(0, newlineIndex);
-            buffer = buffer.slice(newlineIndex + 1);
-
-            if (line.endsWith('\r')) line = line.slice(0, -1);
-            if (line.startsWith(':') || line.trim() === '') continue;
-            if (!line.startsWith('data: ')) continue;
-
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const deltaContent = parsed.choices?.[0]?.delta?.content;
-              if (deltaContent) {
-                assistantMessage += deltaContent;
-                setStreamingContent(assistantMessage);
-              }
-            } catch {
-              continue;
-            }
-          }
-        }
-      }
-
-      if (assistantMessage) {
-        await addMessage(conversation.id, 'assistant', assistantMessage);
-        setStreamingContent('');
-        if (voiceEnabled) speak(assistantMessage);
+      if (assistantMessage || imageUrl) {
+        await addMessage(conversation.id, 'assistant', assistantMessage || 'Iată imaginea generată:', imageUrl || undefined);
+        if (voiceEnabled && assistantMessage) speak(assistantMessage);
+      } else {
+        throw new Error('Nu am primit un răspuns valid de la AI');
       }
     } catch (error) {
       console.error('Chat error:', error);

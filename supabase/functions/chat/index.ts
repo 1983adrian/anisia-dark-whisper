@@ -224,32 +224,40 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// Strict, explicit-only triggers — no false positives from "logo", "banner" etc.
 function looksLikeImageRequest(text: string): boolean {
   const t = text.toLowerCase();
   const imageTriggers = [
     "generează o imagine", "genereaza o imagine", "generează o poză", "genereaza o poza",
     "generează imagine", "genereaza imagine", "generează poză", "genereaza poza",
     "creează o imagine", "creaza o imagine", "creează o poză", "creaza o poza",
-    "desenează", "deseneaza", "draw", "generate image", "generate picture",
-    "create an image", "make an image", "make a picture", "make a photo",
-    "logo", "banner", "wallpaper", "avatar"
+    "fă o poză", "fa o poza", "fă o imagine", "fa o imagine",
+    "desenează-mi", "deseneaza-mi", "desenează o", "deseneaza o",
+    "generate an image", "generate a picture", "generate image of",
+    "create an image of", "make an image of", "make a picture of",
+    "draw me", "draw a", "draw an",
+    "imagine cu", "poză cu", "poza cu",
   ];
+  // Avoid triggering on build requests that just mention "logo" / "banner"
+  const buildBlockers = ["site", "website", "landing", "pagină", "pagina", "html", "preview", "buton", "meniu"];
+  if (buildBlockers.some((b) => t.includes(b))) return false;
   return imageTriggers.some((trigger) => t.includes(trigger));
 }
 
+// Image edit only fires when an image is attached AND user uses explicit edit words on the image
 function looksLikeImageEditRequest(text: string): boolean {
   const t = text.toLowerCase();
   const editTriggers = [
     "editează poza", "editeaza poza", "editează imaginea", "editeaza imaginea",
+    "editează imagine", "editeaza imagine",
     "modifică poza", "modifica poza", "modifică imaginea", "modifica imaginea",
-    "schimbă fundalul", "schimba fundalul", "schimbă culoarea", "schimba culoarea",
-    "adaugă text pe", "adauga text pe", "pune text pe", "scrie pe poză", "scrie pe poza",
-    "scoate fundalul", "remove background", "decupează", "decupeaza",
-    "rotește", "roteste", "decolorează", "decoloreaza", "colorează", "coloreaza",
+    "schimbă în poză", "schimba in poza", "schimbă din imagine", "schimba din imagine",
+    "schimbă fundalul", "schimba fundalul",
+    "scrie pe poză", "scrie pe poza", "pune text pe poză", "pune text pe poza",
+    "scoate fundalul", "remove background",
     "îmbunătățește poza", "imbunatateste poza", "îmbunătățește imaginea", "imbunatateste imaginea",
-    "clonează 1 la 1", "cloneaza 1 la 1", "fă fundalul", "fa fundalul",
-    "fă cerul", "fa cerul", "adaugă în imagine", "adauga in imagine",
-    "elimină din imagine", "elimina din imagine", "face swap"
+    "clonează 1 la 1", "cloneaza 1 la 1", "clonează imaginea", "cloneaza imaginea",
+    "edit this image", "edit the image", "change the background",
   ];
   return editTriggers.some((trigger) => t.includes(trigger));
 }
@@ -834,24 +842,21 @@ REZOLVĂ TOATE problemele. Fiecare buton trebuie să aibă onclick funcțional. 
       assistantContent = hardenPreviewResponse(assistantContent);
     }
 
-    // Extract memory from the conversation for learning
+    // Memory extraction — strict: only persistent preferences, not every "vreau"
     let memory = null;
-    const memoryPatterns = [
-      /prefer|vreau|îmi place|folosesc|stilul meu|limba mea|framework/i,
-      /întotdeauna|mereu|de obicei|obișnuiesc/i,
-    ];
     const userMsg = userMessage.toLowerCase();
-    if (memoryPatterns.some(p => p.test(userMsg))) {
-      const categories: Record<string, string> = {
-        'prefer': 'preference', 'vreau': 'preference', 'îmi place': 'preference',
-        'folosesc': 'tool', 'framework': 'tech', 'limbaj': 'tech',
-        'stil': 'style', 'design': 'style',
-      };
+    const strongPatterns = [
+      /\b(întotdeauna|mereu|de obicei|obișnuiesc|prefer să)\b/i,
+      /\b(stilul meu|limba mea preferată|framework-ul meu)\b/i,
+      /\bține minte\b|\bmemorează\b|\bremember\b/i,
+    ];
+    const isShortNoise = userMessage.trim().length < 25;
+    if (!isShortNoise && strongPatterns.some(p => p.test(userMessage))) {
       let cat = 'general';
-      for (const [key, val] of Object.entries(categories)) {
-        if (userMsg.includes(key)) { cat = val; break; }
-      }
-      memory = { content: userMessage.slice(0, 500), category: cat, importance: 6 };
+      if (/stil|design|culoare|font/i.test(userMsg)) cat = 'style';
+      else if (/framework|limbaj|react|vue|python|typescript/i.test(userMsg)) cat = 'tech';
+      else if (/prefer|vreau|îmi place/i.test(userMsg)) cat = 'preference';
+      memory = { content: userMessage.slice(0, 300), category: cat, importance: 6 };
     }
 
     return new Response(JSON.stringify({ content: assistantContent, memory }), {
