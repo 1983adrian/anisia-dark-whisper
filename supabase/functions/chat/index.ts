@@ -756,7 +756,12 @@ ${fullHtml}
         if (repaired && hasPreviewTag(repaired)) {
           assistantContent = repaired;
         } else {
-          assistantContent = buildEmergencyPreview(userMessage);
+          return new Response(JSON.stringify({
+            error: "AI-ul nu a returnat un preview real construibil. Am oprit răspunsul ca să nu creez fake. Reformulează cererea sau încearcă din nou.",
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       }
     }
