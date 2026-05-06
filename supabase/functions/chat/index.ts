@@ -342,58 +342,6 @@ Răspunsul final TREBUIE să includă tag-ul <preview> cu HTML valid complet.`;
   return repaired || null;
 }
 
-function buildEmergencyPreview(userMessage: string): string {
-  const safePrompt = escapeHtml(userMessage || "Cerere utilizator");
-
-  return `Ți-am construit direct un preview funcțional, gata de salvat/publicat.
-<preview>
-<!DOCTYPE html>
-<html lang="ro">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Proiect construit</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: Inter, sans-serif; }
-    h1,h2 { font-family: 'Space Grotesk', sans-serif; }
-  </style>
-</head>
-<body class="bg-slate-950 text-white min-h-screen">
-  <header class="relative overflow-hidden">
-    <img src="https://picsum.photos/1920/900?random=77" alt="Hero image" class="w-full h-[55vh] object-cover opacity-40" />
-    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent"></div>
-    <div class="absolute inset-0 max-w-5xl mx-auto px-6 flex flex-col justify-center">
-      <span class="text-cyan-300 text-sm uppercase tracking-[0.2em]">Ira Builder</span>
-      <h1 class="text-4xl md:text-6xl font-bold mt-3">Proiect pregătit pentru practică</h1>
-      <p class="mt-4 text-slate-200 max-w-2xl">Am transformat cererea într-o bază construibilă, gata de iterat în chat și de publicat.</p>
-      <div class="mt-6 flex gap-3">
-        <button class="px-5 py-3 rounded-xl bg-cyan-400 text-slate-900 font-semibold">Începe editarea</button>
-        <button class="px-5 py-3 rounded-xl border border-white/30">Publică proiectul</button>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-5xl mx-auto px-6 py-12 grid md:grid-cols-2 gap-6">
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-      <h2 class="text-2xl font-semibold mb-3">Cererea ta</h2>
-      <p class="text-slate-300">${safePrompt}</p>
-    </section>
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-6">
-      <h2 class="text-2xl font-semibold mb-3">Ce poți face acum</h2>
-      <ul class="space-y-2 text-slate-300 list-disc pl-5">
-        <li>Apasă Salvează pentru versiune</li>
-        <li>Apasă Publică pentru link online</li>
-        <li>Spune exact ce modificări vrei și iterăm instant</li>
-      </ul>
-    </section>
-  </main>
-</body>
-</html>
-</preview>`;
-}
-
 function extractPreviewHtml(text: string): string | null {
   const match = text.match(/<preview>\s*([\s\S]*?)\s*<\/preview>/i);
   return match?.[1]?.trim() || null;
