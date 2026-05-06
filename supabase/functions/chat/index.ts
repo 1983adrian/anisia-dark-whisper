@@ -50,7 +50,7 @@ const SYSTEM_PROMPT = `Ești Ira, un AI independent, inteligent și autonom.
 ### DESIGN - OBLIGATORIU:
 - Responsive: mobile-first, funcțional pe toate dispozitivele
 - Minim 6-8 secțiuni complete: hero, despre, servicii, galerie/portofoliu, testimoniale, statistici, contact, footer
-- Imagini reale de pe Unsplash cu URL-uri complete (https://images.unsplash.com/...)
+- Imagini: folosește EXCLUSIV https://picsum.photos/seed/{cuvant-unic}/{W}/{H} (ex: https://picsum.photos/seed/restaurant-hero/1600/900). NU folosi URL-uri Unsplash inventate (ex: images.unsplash.com/photo-XXXXX) pentru că dau 404.
 - Gradient-uri, shadows, rounded corners moderne
 - Font-uri de pe Google Fonts
 - Color scheme consistent și profesional
@@ -325,7 +325,7 @@ Răspunsul final TREBUIE să includă tag-ul <preview> cu HTML valid complet.`;
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-3-flash-preview",
       temperature: 0.2,
       stream: false,
       messages: [
@@ -704,7 +704,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           messages: fullMessages,
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-3-flash-preview",
           temperature: 0.4,
           stream: false,
         }),
