@@ -50,7 +50,7 @@ const SYSTEM_PROMPT = `Ești Ira, un AI independent, inteligent și autonom.
 ### DESIGN - OBLIGATORIU:
 - Responsive: mobile-first, funcțional pe toate dispozitivele
 - Minim 6-8 secțiuni complete: hero, despre, servicii, galerie/portofoliu, testimoniale, statistici, contact, footer
-- Imagini reale de pe Unsplash cu URL-uri complete (https://images.unsplash.com/...)
+- Imagini: folosește EXCLUSIV https://picsum.photos/seed/{cuvant-unic}/{W}/{H} (ex: https://picsum.photos/seed/restaurant-hero/1600/900). NU folosi URL-uri Unsplash inventate (ex: images.unsplash.com/photo-XXXXX) pentru că dau 404.
 - Gradient-uri, shadows, rounded corners moderne
 - Font-uri de pe Google Fonts
 - Color scheme consistent și profesional
@@ -325,7 +325,7 @@ Răspunsul final TREBUIE să includă tag-ul <preview> cu HTML valid complet.`;
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-3-flash-preview",
       temperature: 0.2,
       stream: false,
       messages: [
@@ -539,11 +539,31 @@ function injectInteractivityBridge(html: string): string {
   return `${html}\n${bridgeScript}`;
 }
 
+function replaceBrokenImageUrls(html: string): string {
+  // Unsplash photo IDs inventate de model dau adesea 404. Le înlocuim cu picsum (mereu valid).
+  // Atac doar pattern-urile clasice de URL inventat: images.unsplash.com/photo-XXXX
+  let counter = 0;
+  return html.replace(
+    /https?:\/\/images\.unsplash\.com\/photo-[a-zA-Z0-9?=&_\-%.\/]+/gi,
+    () => {
+      counter++;
+      return `https://picsum.photos/seed/ira-img-${counter}-${Math.floor(Math.random() * 9999)}/1600/900`;
+    }
+  ).replace(
+    /https?:\/\/source\.unsplash\.com\/[a-zA-Z0-9?=&_\-%.\/,]+/gi,
+    () => {
+      counter++;
+      return `https://picsum.photos/seed/ira-src-${counter}-${Math.floor(Math.random() * 9999)}/1600/900`;
+    }
+  );
+}
+
 function hardenPreviewResponse(text: string): string {
   const previewHtml = extractPreviewHtml(text);
   if (!previewHtml) return text;
 
   let hardenedHtml = ensureFullHtmlDocument(previewHtml);
+  hardenedHtml = replaceBrokenImageUrls(hardenedHtml);
   hardenedHtml = injectInteractivityBridge(hardenedHtml);
 
   return replacePreviewHtml(text, hardenedHtml);
@@ -704,7 +724,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           messages: fullMessages,
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-3-flash-preview",
           temperature: 0.4,
           stream: false,
         }),
