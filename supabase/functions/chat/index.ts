@@ -539,11 +539,31 @@ function injectInteractivityBridge(html: string): string {
   return `${html}\n${bridgeScript}`;
 }
 
+function replaceBrokenImageUrls(html: string): string {
+  // Unsplash photo IDs inventate de model dau adesea 404. Le înlocuim cu picsum (mereu valid).
+  // Atac doar pattern-urile clasice de URL inventat: images.unsplash.com/photo-XXXX
+  let counter = 0;
+  return html.replace(
+    /https?:\/\/images\.unsplash\.com\/photo-[a-zA-Z0-9?=&_\-%.\/]+/gi,
+    () => {
+      counter++;
+      return `https://picsum.photos/seed/ira-img-${counter}-${Math.floor(Math.random() * 9999)}/1600/900`;
+    }
+  ).replace(
+    /https?:\/\/source\.unsplash\.com\/[a-zA-Z0-9?=&_\-%.\/,]+/gi,
+    () => {
+      counter++;
+      return `https://picsum.photos/seed/ira-src-${counter}-${Math.floor(Math.random() * 9999)}/1600/900`;
+    }
+  );
+}
+
 function hardenPreviewResponse(text: string): string {
   const previewHtml = extractPreviewHtml(text);
   if (!previewHtml) return text;
 
   let hardenedHtml = ensureFullHtmlDocument(previewHtml);
+  hardenedHtml = replaceBrokenImageUrls(hardenedHtml);
   hardenedHtml = injectInteractivityBridge(hardenedHtml);
 
   return replacePreviewHtml(text, hardenedHtml);
